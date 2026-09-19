@@ -230,13 +230,13 @@
     </div>
 
     <div class="main-content">
-      <div id="statusBar" class="status-bar">連線中...</div>
+      <div id="statusBar" class="status-bar">初始化中...</div>
       <div class="layout-grid" id="layoutGrid"></div>
     </div>
   </div>
 
   <script>
-    // 1. Firebase 金鑰設定（請填入您的真實資訊）
+    // 1. Firebase 金鑰設定
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -247,49 +247,62 @@
       appId: "YOUR_APP_ID"
     };
 
-    // 初始化 Firebase Compat
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const tablesRef = db.ref('wedding_tables');
+    let db, tablesRef;
+    let localTablesData = [
+      { id: "t1", name: "主桌", guests: [] },
+      { id: "t2", name: "男方親友桌", guests: [] }
+    ];
 
-    let localTablesData = [];
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      tablesRef = db.ref('wedding_tables');
+    } catch (e) {
+      console.warn("Firebase 初始化異常，改用本地端模式運行", e);
+    }
 
-    // 2. 即時監聽資料
-    tablesRef.on('value', (snapshot) => {
-      const data = snapshot.val();
-      document.getElementById('statusBar').innerText = '● 即時連線同步中';
-      
-      if (data) {
-        const rawList = Array.isArray(data) ? data : Object.values(data);
-        localTablesData = rawList.filter(Boolean).map(table => ({
-          ...table,
-          guests: table.guests ? (Array.isArray(table.guests) ? table.guests : Object.values(table.guests)).filter(Boolean) : []
-        }));
-      } else {
-        // 若完全無資料，建立預設桌位
-        localTablesData = [
-          { id: "t1", name: "主桌", guests: [] },
-          { id: "t2", name: "男方親友桌", guests: [] }
-        ];
-        tablesRef.set(localTablesData);
-      }
+    // 立即先渲染一次預設畫面，確保不會空白
+    renderTables();
+    updateTableSelect();
 
-      renderTables();
-      updateTableSelect();
-    }, (error) => {
-      console.error("Firebase 錯誤:", error);
-      document.getElementById('statusBar').innerText = '✕ 連線失敗';
-    });
+    if (tablesRef) {
+      // 2. 即時監聽資料
+      tablesRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        document.getElementById('statusBar').innerText = '● 即時連線同步中';
+        
+        if (data) {
+          const rawList = Array.isArray(data) ? data : Object.values(data);
+          localTablesData = rawList.filter(Boolean).map(table => ({
+            ...table,
+            guests: table.guests ? (Array.isArray(table.guests) ? table.guests : Object.values(table.guests)).filter(Boolean) : []
+          }));
+        } else {
+          tablesRef.set(localTablesData);
+        }
+
+        renderTables();
+        updateTableSelect();
+      }, (error) => {
+        console.error("Firebase 讀取錯誤:", error);
+        document.getElementById('statusBar').innerText = '✕ 雲端連線失敗（目前為離線顯示）';
+      });
+    } else {
+      document.getElementById('statusBar').innerText = '✕ 未設定 Firebase，離線運作中';
+    }
 
     function saveToFirebase() {
-      tablesRef.set(localTablesData).catch((err) => {
-        alert("儲存失敗：" + err.message);
-      });
+      if (tablesRef) {
+        tablesRef.set(localTablesData).catch((err) => {
+          console.error("儲存失敗：", err);
+        });
+      }
     }
 
     // 3. 渲染桌位與卡片
     function renderTables() {
       const grid = document.getElementById('layoutGrid');
+      if (!grid) return;
       grid.innerHTML = '';
 
       if (!localTablesData || localTablesData.length === 0) {
@@ -358,12 +371,14 @@
         if (!table.guests) table.guests = [];
         table.guests.push({ name, category });
         nameInput.value = '';
+        renderTables(); // 立即本地更新畫面
         saveToFirebase();
       }
     }
 
     function removeGuest(tableIndex, guestIndex) {
       localTablesData[tableIndex].guests.splice(guestIndex, 1);
+      renderTables();
       saveToFirebase();
     }
 
@@ -383,12 +398,16 @@
 
       localTablesData.push(newTable);
       nameInput.value = '';
+      renderTables();
+      updateTableSelect();
       saveToFirebase();
     }
 
     function deleteTable(tableIndex) {
       if (confirm(`確定要刪除「${localTablesData[tableIndex].name}」嗎？`)) {
         localTablesData.splice(tableIndex, 1);
+        renderTables();
+        updateTableSelect();
         saveToFirebase();
       }
     }
