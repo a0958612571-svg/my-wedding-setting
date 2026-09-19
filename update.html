@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>婚禮桌位平面配置圖</title>
+  
+  <!-- 引入 Firebase 9 傳統相容版 SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #8C7A6B;
+      --bg-color: #F9F8F6;
+      --card-bg: #FFFFFF;
+      --border-color: #E2DDD7;
+      --text-color: #4A4A4A;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 16px;
+    }
+
+    h1 {
+      text-align: center;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+      font-size: 22px;
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .sidebar {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 14px;
+      background-color: #FFF;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .status-bar {
+      font-size: 12px;
+      color: #888;
+      text-align: right;
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      width: 100%;
+    }
+
+    .table-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      min-height: 160px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .table-header {
+      border-bottom: 2px solid var(--bg-color);
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+
+    .delete-table-btn {
+      background: none;
+      border: none;
+      color: #CCC;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+
+    .delete-table-btn:hover {
+      color: #FF4D4F;
+    }
+
+    .guest-list {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-content: flex-start;
+      min-height: 90px;
+      padding: 8px;
+      background: #FAFAFA;
+      border-radius: 6px;
+    }
+
+    .guest-tag {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 13px;
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      word-break: break-all;
+    }
+
+    .tag-男方親友 { background-color: #6C8EBF; }
+    .tag-女方親友 { background-color: #E19595; }
+    .tag-主桌賓客 { background-color: #D6B656; }
+    .tag-工作人員 { background-color: #82B366; }
+    .tag-一般賓客 { background-color: #999999; }
+
+    .delete-guest-btn {
+      cursor: pointer;
+      font-weight: bold;
+      opacity: 0.8;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>婚禮桌位平面配置圖</h1>
+
+  <div class="container">
+    <div class="sidebar">
+      <h2 style="font-size: 15px; margin-bottom: 14px;">新增賓客</h2>
+      <div class="form-group">
+        <label>賓客姓名</label>
+        <input type="text" id="guestName" placeholder="請輸入姓名">
+      </div>
+      <div class="form-group">
+        <label>賓客分類標籤</label>
+        <select id="guestCategory">
+          <option value="男方親友">男方親友</option>
+          <option value="女方親友">女方親友</option>
+          <option value="主桌賓客">主桌賓客</option>
+          <option value="工作人員">工作人員</option>
+          <option value="一般賓客">一般賓客</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>分配桌次</label>
+        <select id="tableSelect"></select>
+      </div>
+      <button onclick="addGuest()">新增至桌位</button>
+
+      <hr style="margin: 18px 0; border: none; border-top: 1px solid var(--border-color);">
+
+      <div class="form-group">
+        <label>新增桌號/桌名</label>
+        <input type="text" id="tableName" placeholder="例如：主桌、男方同學桌">
+      </div>
+      <button onclick="addTable()" style="background-color: #6C757D;">新增桌位</button>
+    </div>
+
+    <div class="main-content">
+      <div id="statusBar" class="status-bar">初始化中...</div>
+      <div class="layout-grid" id="layoutGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    // 1. Firebase 金鑰設定
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    let db, tablesRef;
+    let localTablesData = [
+      { id: "t1", name: "主桌", guests: [] },
+      { id: "t2", name: "男方親友桌", guests: [] }
+    ];
+
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      tablesRef = db.ref('wedding_tables');
+    } catch (e) {
+      console.warn("Firebase 初始化異常，改用本地端模式運行", e);
+    }
+
+    // 立即先渲染一次預設畫面，確保不會空白
+    renderTables();
+    updateTableSelect();
+
+    if (tablesRef) {
+      // 2. 即時監聽資料
+      tablesRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        document.getElementById('statusBar').innerText = '● 即時連線同步中';
+        
+        if (data) {
+          const rawList = Array.isArray(data) ? data : Object.values(data);
+          localTablesData = rawList.filter(Boolean).map(table => ({
+            ...table,
+            guests: table.guests ? (Array.isArray(table.guests) ? table.guests : Object.values(table.guests)).filter(Boolean) : []
+          }));
+        } else {
+          tablesRef.set(localTablesData);
+        }
+
+        renderTables();
+        updateTableSelect();
+      }, (error) => {
+        console.error("Firebase 讀取錯誤:", error);
+        document.getElementById('statusBar').innerText = '✕ 雲端連線失敗（目前為離線顯示）';
+      });
+    } else {
+      document.getElementById('statusBar').innerText = '✕ 未設定 Firebase，離線運作中';
+    }
+
+    function saveToFirebase() {
+      if (tablesRef) {
+        tablesRef.set(localTablesData).catch((err) => {
+          console.error("儲存失敗：", err);
+        });
+      }
+    }
+
+    // 3. 渲染桌位與卡片
+    function renderTables() {
+      const grid = document.getElementById('layoutGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      if (!localTablesData || localTablesData.length === 0) {
+        grid.innerHTML = '<div style="color:#999; grid-column:1/-1; padding:20px; background:#fff; border-radius:8px; text-align:center;">目前無桌位，請從左側新增。</div>';
+        return;
+      }
+
+      localTablesData.forEach((table, tIndex) => {
+        const card = document.createElement('div');
+        card.className = 'table-card';
+        
+        const header = document.createElement('div');
+        header.className = 'table-header';
+        header.innerHTML = `
+          <div class="table-title">${table.name || '未命名桌'}</div>
+          <button class="delete-table-btn" title="刪除此桌" onclick="deleteTable(${tIndex})">✕</button>
+        `;
+        card.appendChild(header);
+
+        const guestList = document.createElement('div');
+        guestList.className = 'guest-list';
+        
+        if (table.guests && table.guests.length > 0) {
+          table.guests.forEach((guest, gIndex) => {
+            const tag = document.createElement('span');
+            tag.className = `guest-tag tag-${guest.category || '一般賓客'}`;
+            tag.innerHTML = `
+              ${guest.name}
+              <span class="delete-guest-btn" onclick="removeGuest(${tIndex}, ${gIndex})">×</span>
+            `;
+            guestList.appendChild(tag);
+          });
+        }
+
+        card.appendChild(guestList);
+        grid.appendChild(card);
+      });
+    }
+
+    function updateTableSelect() {
+      const select = document.getElementById('tableSelect');
+      if (!select) return;
+      select.innerHTML = '';
+      localTablesData.forEach(table => {
+        const opt = document.createElement('option');
+        opt.value = table.id;
+        opt.textContent = table.name;
+        select.appendChild(opt);
+      });
+    }
+
+    // 4. 互動操作函式
+    function addGuest() {
+      const nameInput = document.getElementById('guestName');
+      const name = nameInput.value.trim();
+      const category = document.getElementById('guestCategory').value;
+      const tableId = document.getElementById('tableSelect').value;
+
+      if (!name) {
+        alert('請輸入賓客姓名');
+        return;
+      }
+
+      const table = localTablesData.find(t => t.id === tableId);
+      if (table) {
+        if (!table.guests) table.guests = [];
+        table.guests.push({ name, category });
+        nameInput.value = '';
+        renderTables(); // 立即本地更新畫面
+        saveToFirebase();
+      }
+    }
+
+    function removeGuest(tableIndex, guestIndex) {
+      localTablesData[tableIndex].guests.splice(guestIndex, 1);
+      renderTables();
+      saveToFirebase();
+    }
+
+    function addTable() {
+      const nameInput = document.getElementById('tableName');
+      const name = nameInput.value.trim();
+      if (!name) {
+        alert('請輸入桌名');
+        return;
+      }
+
+      const newTable = {
+        id: 't_' + Date.now(),
+        name: name,
+        guests: []
+      };
+
+      localTablesData.push(newTable);
+      nameInput.value = '';
+      renderTables();
+      updateTableSelect();
+      saveToFirebase();
+    }
+
+    function deleteTable(tableIndex) {
+      if (confirm(`確定要刪除「${localTablesData[tableIndex].name}」嗎？`)) {
+        localTablesData.splice(tableIndex, 1);
+        renderTables();
+        updateTableSelect();
+        saveToFirebase();
+      }
+    }
+  </script>
+</body>
+</html>
