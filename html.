@@ -663,85 +663,96 @@
 
       adminPassword = newPw;
       localStorage.setItem('wedding_admin_pw', adminPassword);
-      
+      alert('後台管理密碼修改成功！');
       document.getElementById('curPassword').value = '';
       document.getElementById('newPassword').value = '';
       document.getElementById('confirmPassword').value = '';
-
-      alert('密碼已順利修改完成！下次登入請使用新密碼。');
     }
 
     function switchAdminTab(tabName) {
       ['tables', 'canvas', 'info'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.add('hidden');
-        document.getElementById(`tabBtn-${t}`).className = 'px-5 py-2.5 rounded-2xl text-xs font-medium text-[#786A5C] hover:bg-[#EFE8DF]';
+        const btn = document.getElementById(`tabBtn-${t}`);
+        btn.classList.remove('bg-[#B09F8C]', 'text-white', 'font-bold');
+        btn.classList.add('text-[#786A5C]');
       });
-      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-      document.getElementById(`tabBtn-${tabName}`).className = 'px-5 py-2.5 rounded-2xl text-xs font-bold bg-[#B09F8C] text-white shadow-sm';
 
-      if (tabName === 'canvas') initCanvasEditor();
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tabBtn-${tabName}`);
+      activeBtn.classList.add('bg-[#B09F8C]', 'text-white', 'font-bold');
+      activeBtn.classList.remove('text-[#786A5C]');
+
+      if (tabName === 'canvas') {
+        renderCanvasEditor();
+      }
     }
 
     function refreshAdminData() {
       document.getElementById('statTableCount').innerText = tables.length;
       document.getElementById('statGuestCount').innerText = guests.length;
 
-      const tableCardGrid = document.getElementById('adminTableCardGrid');
-      tableCardGrid.innerHTML = '';
-      tables.forEach((t, idx) => {
-        const count = guests.filter(g => g.tableCode === t.id).length;
-        const card = document.createElement('div');
-        card.className = 'bg-white p-4 rounded-2xl border border-[#ECE4DA] space-y-2 relative';
-        card.innerHTML = `
-          <div class="flex justify-between items-start">
-            <div>
-              <span class="text-xs font-bold text-[#52473C]">${t.name}</span>
-              <p class="text-[10px] text-[#A39281]">${t.category || '未分類'} (${t.id})</p>
-            </div>
-            <span class="text-xs text-[#A39281]">${count} 人</span>
-          </div>
-          <div class="flex justify-end gap-3 text-[11px] pt-1">
-            <button onclick="editTablePrompt(${idx})" class="text-[#786A5C] hover:underline">✏️ 編輯</button>
-            <button onclick="deleteTable(${idx})" class="text-red-400 hover:underline">🗑️ 刪除</button>
-          </div>
-        `;
-        tableCardGrid.appendChild(card);
-      });
+      renderAdminTableGrid();
+      renderGuestSelectOptions();
+      renderGuestAdminTable();
+    }
 
-      const sel = document.getElementById('addGuestTableSelect');
-      sel.innerHTML = '<option value="">請選擇桌號</option>';
+    function renderAdminTableGrid() {
+      const grid = document.getElementById('adminTableCardGrid');
+      grid.innerHTML = '';
+
+      tables.forEach(t => {
+        const seatedCount = guests.filter(g => g.tableCode === t.id).length;
+        const card = document.createElement('div');
+        card.className = 'bg-white p-3.5 rounded-2xl border border-[#ECE4DA] flex justify-between items-center text-xs';
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-[#52473C]">${t.name}</span>
+              <span class="bg-[#EFE8DF] px-2 py-0.5 rounded-md text-[10px] text-[#786A5C]">${t.id}</span>
+            </div>
+            <p class="text-[10px] text-[#A39281] mt-1">分類：${t.category || '未設定'} | 目前人數：<span class="font-bold text-[#52473C]">${seatedCount}</span> 人</p>
+          </div>
+          <button onclick="deleteTable('${t.id}')" class="text-red-400 hover:text-red-600 font-medium text-[11px] px-2 py-1 bg-red-50 rounded-lg">刪除</button>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderGuestSelectOptions() {
+      const select = document.getElementById('addGuestTableSelect');
+      select.innerHTML = '';
       tables.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.id;
         opt.innerText = `${t.name} (${t.id})`;
-        sel.appendChild(opt);
+        select.appendChild(opt);
       });
-
-      renderGuestAdminTable();
     }
 
     function renderGuestAdminTable() {
-      const q = document.getElementById('adminGuestSearch').value.trim().toLowerCase();
+      const filter = document.getElementById('adminGuestSearch').value.trim().toLowerCase();
       const tbody = document.getElementById('adminGuestTableBody');
       tbody.innerHTML = '';
 
-      const filtered = guests.filter(g => g.name.toLowerCase().includes(q) || g.tableCode.toLowerCase().includes(q));
+      const filtered = guests.filter(g => 
+        g.name.toLowerCase().includes(filter) || 
+        g.tableCode.toLowerCase().includes(filter)
+      );
 
       document.getElementById('filteredGuestCount').innerText = filtered.length;
       document.getElementById('totalGuestCount').innerText = guests.length;
 
-      filtered.forEach((g, idx) => {
-        const origIdx = guests.findIndex(orig => orig === g);
-        const t = tables.find(item => item.id === g.tableCode);
+      filtered.forEach((g, index) => {
+        const table = tables.find(t => t.id === g.tableCode);
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-white/50 transition';
+        tr.className = 'hover:bg-white/60 transition';
         tr.innerHTML = `
           <td class="py-2.5 px-3 font-bold text-[#52473C]">${g.name}</td>
-          <td class="py-2.5 px-3 text-[#786A5C]"><span class="bg-[#EFE8DF] px-2 py-0.5 rounded-full text-[10px]">${g.tableCode}</span></td>
-          <td class="py-2.5 px-3 text-[#786A5C]">${t ? t.name : '未指派'}</td>
+          <td class="py-2.5 px-3"><span class="bg-[#EFE8DF] px-2 py-0.5 rounded text-[10px] text-[#786A5C]">${g.tableCode}</span></td>
+          <td class="py-2.5 px-3 text-[#786A5C]">${table ? table.name : '未指派'}</td>
           <td class="py-2.5 px-3 text-[#A39281]">${g.note || '-'}</td>
           <td class="py-2.5 px-3 text-right">
-            <button onclick="deleteGuest(${origIdx})" class="text-red-400 hover:underline">刪除</button>
+            <button onclick="deleteGuest(${index})" class="text-red-400 hover:text-red-600 font-medium">刪除</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -749,12 +760,12 @@
     }
 
     function addNewTable() {
-      const code = document.getElementById('addTableCode').value.trim();
+      const code = document.getElementById('addTableCode').value.trim().toUpperCase();
       const name = document.getElementById('addTableName').value.trim();
       const category = document.getElementById('addTableCategory').value.trim();
 
       if (!code || !name) {
-        alert('請填寫桌號代碼與名稱！');
+        alert('請填寫桌號代碼與桌次名稱！');
         return;
       }
 
@@ -763,57 +774,55 @@
         return;
       }
 
-      tables.push({ id: code, name, category, top: 100, left: 200 });
-      saveAllData();
-      refreshAdminData();
+      tables.push({
+        id: code,
+        name: name,
+        category: category || "一般",
+        top: 100,
+        left: 200
+      });
 
+      localStorage.setItem('wedding_tables_v5', JSON.stringify(tables));
       document.getElementById('addTableCode').value = '';
       document.getElementById('addTableName').value = '';
       document.getElementById('addTableCategory').value = '';
+
+      refreshAdminData();
+      alert('桌號新增成功！');
     }
 
-    function editTablePrompt(idx) {
-      const t = tables[idx];
-      const newName = prompt('請輸入新的桌次名稱：', t.name);
-      if (newName !== null && newName.trim() !== '') {
-        t.name = newName.trim();
-        saveAllData();
-        refreshAdminData();
-      }
-    }
-
-    function deleteTable(idx) {
-      if (confirm('確定要刪除此桌號嗎？')) {
-        tables.splice(idx, 1);
-        saveAllData();
-        refreshAdminData();
-      }
+    function deleteTable(id) {
+      if (!confirm(`確定要刪除桌號 ${id} 嗎？`)) return;
+      tables = tables.filter(t => t.id !== id);
+      localStorage.setItem('wedding_tables_v5', JSON.stringify(tables));
+      refreshAdminData();
     }
 
     function addNewGuest() {
       const name = document.getElementById('addGuestName').value.trim();
       const tableCode = document.getElementById('addGuestTableSelect').value;
-      const note = document.getElementById('addGuestNote').value.trim() || '-';
+      const note = document.getElementById('addGuestNote').value.trim();
 
-      if (!name || !tableCode) {
-        alert('請填寫賓客姓名並選擇分配桌號！');
+      if (!name) {
+        alert('請輸入賓客姓名！');
         return;
       }
 
-      guests.push({ name, tableCode, note });
-      saveAllData();
-      refreshAdminData();
+      guests.push({ name, tableCode, note: note || '-' });
+      localStorage.setItem('wedding_guests_v5', JSON.stringify(guests));
 
       document.getElementById('addGuestName').value = '';
       document.getElementById('addGuestNote').value = '';
+
+      refreshAdminData();
+      alert('賓客新增成功！');
     }
 
-    function deleteGuest(idx) {
-      if (confirm('確定刪除此賓客？')) {
-        guests.splice(idx, 1);
-        saveAllData();
-        refreshAdminData();
-      }
+    function deleteGuest(index) {
+      if (!confirm('確定要刪除此位賓客嗎？')) return;
+      guests.splice(index, 1);
+      localStorage.setItem('wedding_guests_v5', JSON.stringify(guests));
+      refreshAdminData();
     }
 
     function saveWeddingInfo() {
@@ -824,15 +833,18 @@
         location: document.getElementById('cfgLocation').value.trim(),
         hall: document.getElementById('cfgHall').value.trim()
       };
-      saveAllData();
+
+      localStorage.setItem('wedding_info_v5', JSON.stringify(weddingInfo));
       renderWeddingInfo();
-      alert('婚禮基本資訊已更新！');
+      alert('婚禮基本資訊儲存成功！');
     }
 
-    function initCanvasEditor() {
+    /* 平面圖編輯器與拖曳處理 */
+    function renderCanvasEditor() {
       const container = document.getElementById('editorNodesContainer');
-      const canvasEl = document.getElementById('editorCanvas');
+      const svg = document.getElementById('editorCarpetSvg');
       container.innerHTML = '';
+      svg.innerHTML = '';
 
       document.getElementById('lX1').value = lCarpet.x1;
       document.getElementById('lY1').value = lCarpet.y1;
@@ -842,27 +854,28 @@
       document.getElementById('lY3').value = lCarpet.y3;
       document.getElementById('lWidth').value = lCarpet.width || 24;
 
-      renderEditorCarpet();
+      renderEditorCarpetSvg();
 
       tables.forEach(t => {
         const circle = document.createElement('div');
-        circle.id = `editor-node-${t.id}`;
+        circle.id = `drag-node-${t.id}`;
         circle.className = 'absolute rounded-full table-circle-node drag-node flex flex-col justify-center items-center text-center p-1 shadow-md';
         circle.style.top = `${t.top}px`;
         circle.style.left = `${t.left}px`;
         circle.innerHTML = `
-          <span class="text-[11px] font-bold font-serif-custom text-[#52473C] leading-tight px-0.5 truncate w-full pointer-events-none">${t.name}</span>
-          <span class="text-[8px] text-[#8C7A6B] mt-0.5 bg-white/70 px-1.5 py-0.2 rounded-full border border-[#E0D5C7] pointer-events-none">${t.id}</span>
+          <span class="text-[11px] font-bold font-serif-custom text-[#52473C] leading-tight px-0.5 truncate w-full">${t.name}</span>
+          <span class="text-[9px] text-[#8C7A6B] font-mono">${t.id}</span>
         `;
 
-        enableDrag(circle, t, canvasEl);
+        enableDrag(circle, t);
         container.appendChild(circle);
       });
     }
 
-    function renderEditorCarpet() {
+    function renderEditorCarpetSvg() {
       const svg = document.getElementById('editorCarpetSvg');
       svg.innerHTML = '';
+
       const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
       const points = `${lCarpet.x1},${lCarpet.y1} ${lCarpet.x2},${lCarpet.y2} ${lCarpet.x3},${lCarpet.y3}`;
       polyline.setAttribute('points', points);
@@ -884,90 +897,91 @@
         y3: parseInt(document.getElementById('lY3').value) || 0,
         width: parseInt(document.getElementById('lWidth').value) || 24
       };
-      renderEditorCarpet();
+      renderEditorCarpetSvg();
     }
 
-    /* 重新設計優化的通用拖拽函式 (支援 Mouse & Touch 事件) */
-    function enableDrag(elmnt, tableObj, containerEl) {
-      let startX = 0, startY = 0;
-      let initialLeft = 0, initialTop = 0;
+    function enableDrag(element, tableObj) {
+      let active = false;
+      let startX, startY, origTop, origLeft;
 
-      elmnt.addEventListener('mousedown', startDrag);
-      elmnt.addEventListener('touchstart', startDrag, { passive: false });
+      const onStart = (e) => {
+        active = true;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        startX = clientX;
+        startY = clientY;
+        origTop = element.offsetTop;
+        origLeft = element.offsetLeft;
 
-      function startDrag(e) {
-        if (e.type === 'touchstart') {
-          const touch = e.touches[0];
-          startX = touch.clientX;
-          startY = touch.clientY;
-        } else {
-          e.preventDefault();
-          startX = e.clientX;
-          startY = e.clientY;
-        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchend', onEnd);
+      };
 
-        initialLeft = elmnt.offsetLeft;
-        initialTop = elmnt.offsetTop;
+      const onMove = (e) => {
+        if (!active) return;
+        if (e.cancelable) e.preventDefault();
 
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', stopDrag);
-        document.addEventListener('touchmove', onDrag, { passive: false });
-        document.addEventListener('touchend', stopDrag);
-      }
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-      function onDrag(e) {
-        let currentX = 0, currentY = 0;
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
 
-        if (e.type === 'touchmove') {
-          e.preventDefault(); // 阻止滑動頁面
-          const touch = e.touches[0];
-          currentX = touch.clientX;
-          currentY = touch.clientY;
-        } else {
-          e.preventDefault();
-          currentX = e.clientX;
-          currentY = e.clientY;
-        }
+        let newTop = origTop + deltaY;
+        let newLeft = origLeft + deltaX;
 
-        const deltaX = currentX - startX;
-        const deltaY = currentY - startY;
+        // 限制在 Canvas 邊界內
+        newTop = Math.max(0, Math.min(newTop, 780));
+        newLeft = Math.max(0, Math.min(newLeft, 450));
 
-        let newLeft = initialLeft + deltaX;
-        let newTop = initialTop + deltaY;
+        element.style.top = `${newTop}px`;
+        element.style.left = `${newLeft}px`;
 
-        // 計算邊界 (限制在畫布範圍內，預設畫布寬520高850，節點寬70高70)
-        const maxLeft = containerEl.clientWidth - elmnt.offsetWidth;
-        const maxTop = containerEl.clientHeight - elmnt.offsetHeight;
-
-        newLeft = Math.max(0, Math.min(newLeft, maxLeft));
-        newTop = Math.max(0, Math.min(newTop, maxTop));
-
-        elmnt.style.left = newLeft + 'px';
-        elmnt.style.top = newTop + 'px';
-
-        tableObj.left = newLeft;
         tableObj.top = newTop;
-      }
+        tableObj.left = newLeft;
+      };
 
-      function stopDrag() {
-        document.removeEventListener('mousemove', onDrag);
-        document.removeEventListener('mouseup', stopDrag);
-        document.removeEventListener('touchmove', onDrag);
-        document.removeEventListener('touchend', stopDrag);
-      }
+      const onEnd = () => {
+        active = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchend', onEnd);
+      };
+
+      element.addEventListener('mousedown', onStart);
+      element.addEventListener('touchstart', onStart, { passive: false });
     }
 
     function saveCanvasLayout() {
-      saveAllData();
-      alert('平面圖與 L 型紅毯佈局已成功儲存！');
+      localStorage.setItem('wedding_tables_v5', JSON.stringify(tables));
+      localStorage.setItem('wedding_lcarpet_v5', JSON.stringify(lCarpet));
+      alert('平面圖與紅毯佈局儲存成功！');
+    }
+
+    /* CSV 匯入與導出 */
+    function exportGuestCSV() {
+      let csvContent = "data:text/csv;charset=utf-8,\uFEFF姓名,桌號代碼,備註\n";
+      guests.forEach(g => {
+        csvContent += `"${g.name}","${g.tableCode}","${g.note || '-'}"\n`;
+      });
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `賓客名單_${weddingInfo.groom}&${weddingInfo.bride}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     function downloadCsvTemplate() {
-      const csvContent = "\uFEFF姓名,桌號代碼,備註\n王小明,L1,蛋奶素\n李小華,L2,-\n張大同,R1,兒童椅";
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const csvContent = "data:text/csv;charset=utf-8,\uFEFF姓名,桌號代碼,備註\n王小明,L1,蛋奶素\n陳小美,R2,-\n";
+      const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.setAttribute("download", "賓客資料匯入範本.csv");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "賓客匯入範本.csv");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -980,54 +994,30 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         const text = e.target.result;
-        const lines = text.split(/\r\n|\n/);
+        const lines = text.split('\n');
         let importedCount = 0;
 
         for (let i = 1; i < lines.length; i++) {
           const line = lines[i].trim();
           if (!line) continue;
-          const parts = line.split(',');
-          if (parts.length >= 2) {
-            const name = parts[0].trim();
-            const tableCode = parts[1].trim();
-            const note = parts[2] ? parts[2].trim() : '-';
-
-            if (name && tableCode) {
-              guests.push({ name, tableCode, note });
-              importedCount++;
-            }
+          
+          const cols = line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+          if (cols.length >= 2 && cols[0]) {
+            guests.push({
+              name: cols[0],
+              tableCode: cols[1] || 'L1',
+              note: cols[2] || '-'
+            });
+            importedCount++;
           }
         }
 
-        saveAllData();
+        localStorage.setItem('wedding_guests_v5', JSON.stringify(guests));
         refreshAdminData();
         alert(`成功匯入 ${importedCount} 筆賓客資料！`);
+        event.target.value = '';
       };
       reader.readAsText(file);
-    }
-
-    function exportGuestCSV() {
-      let csv = "\uFEFF姓名,桌號代碼,桌次名稱,備註\n";
-      guests.forEach(g => {
-        const t = tables.find(item => item.id === g.tableCode);
-        csv += `"${g.name}","${g.tableCode}","${t ? t.name : '未指派'}","${g.note || '-'}"\n`;
-      });
-
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.setAttribute("download", `婚禮賓客名冊_${weddingInfo.groom}&${weddingInfo.bride}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    function saveAllData() {
-      localStorage.setItem('wedding_info_v5', JSON.stringify(weddingInfo));
-      localStorage.setItem('wedding_tables_v5', JSON.stringify(tables));
-      localStorage.setItem('wedding_lcarpet_v5', JSON.stringify(lCarpet));
-      localStorage.setItem('wedding_guests_v5', JSON.stringify(guests));
-      localStorage.setItem('wedding_admin_pw', adminPassword);
     }
   </script>
 </body>
