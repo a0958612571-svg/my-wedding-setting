@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>婚禮桌位圖與座位安排系統</title>
+  <title>婚禮桌位平面圖系統</title>
   <style>
     :root {
       --primary-color: #8C7A6B;
@@ -86,7 +86,7 @@
       opacity: 0.9;
     }
 
-    /* 平面圖區域 */
+    /* 主畫面平面圖區域 */
     .layout-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -123,15 +123,15 @@
     .delete-table-btn {
       background: none;
       border: none;
-      color: #ccc;
+      color: #CCC;
       font-size: 16px;
       cursor: pointer;
       width: auto;
-      padding: 0 5px;
+      padding: 0 4px;
     }
 
     .delete-table-btn:hover {
-      color: #ff4d4f;
+      color: #FF4D4F;
     }
 
     .guest-list {
@@ -156,7 +156,7 @@
       gap: 6px;
     }
 
-    /* 分類標籤顏色 */
+    /* 賓客分類標籤顏色 */
     .tag-男方親友 { background-color: #6C8EBF; }
     .tag-女方親友 { background-color: #E19595; }
     .tag-主桌賓客 { background-color: #D6B656; }
@@ -178,6 +178,7 @@
       font-size: 12px;
       color: #888;
       text-align: right;
+      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -215,22 +216,22 @@
         <label>新增桌號/桌名</label>
         <input type="text" id="tableName" placeholder="例如：主桌、男方大學同學">
       </div>
-      <button onclick="addTable()" style="background-color: #6c757d;">新增桌位</button>
+      <button onclick="addTable()" style="background-color: #6C757D;">新增桌位</button>
     </div>
 
     <!-- 桌位區域 -->
     <div>
-      <div id="statusBar" class="status-bar">資料連線中...</div>
+      <div id="statusBar" class="status-bar">連線中...</div>
       <div class="layout-grid" id="layoutGrid"></div>
     </div>
   </div>
 
-  <!-- 引入 Firebase SDK (Modular v9/v10) -->
+  <!-- 引入 Firebase SDK (Modular v10) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // 1. Firebase 專案配置（請替換為您自己的金鑰資訊）
+    // 1. Firebase 金鑰設定（請替換為您的 Firebase 專案真實資訊）
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -241,26 +242,25 @@
       appId: "YOUR_APP_ID"
     };
 
-    // 初始化 Firebase
+    // 初始化 Firebase 實例
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const tablesRef = ref(db, 'wedding_tables');
 
-    // 全域變數儲存本地狀態
+    // 全域變數儲存本地桌位狀態
     let localTablesData = [];
 
-    // 2. 即時監聽 Firebase 資料庫變化（這是即時同步的核心）
+    // 2. 監聽 Realtime Database 變化
     onValue(tablesRef, (snapshot) => {
       const data = snapshot.val();
-      document.getElementById('statusBar').innerText = '● 即時同步中';
+      document.getElementById('statusBar').innerText = '● 即時連線同步中';
       
       if (data) {
-        // Firebase Array 如果刪除項可能變為 Object 或帶 null，做正規化處理
-        localTablesData = Array.isArray(data) ? data : Object.values(data);
-        // 防護：確保 guests 一定是陣列
-        localTablesData = localTablesData.filter(Boolean).map(t => ({
-          ...t,
-          guests: t.guests ? (Array.isArray(t.guests) ? t.guests : Object.values(t.guests)) : []
+        // 安全轉換：處理 Firebase 將陣列轉成 Object 或包含 null 的情況
+        const rawList = Array.isArray(data) ? data : Object.values(data);
+        localTablesData = rawList.filter(Boolean).map(table => ({
+          ...table,
+          guests: table.guests ? (Array.isArray(table.guests) ? table.guests : Object.values(table.guests)).filter(Boolean) : []
         }));
       } else {
         // 若資料庫完全空的，初始化預設桌位
@@ -268,10 +268,10 @@
           { id: "t1", name: "主桌", guests: [] },
           { id: "t2", name: "男方親友桌 A", guests: [] }
         ];
-        saveToFirebase(); // 自動建立預設值
+        saveToFirebase();
       }
 
-      // 當資料庫更新時，重新繪製畫面
+      // 當資料庫有變化時，重新繪製畫面與選單
       renderTables();
       updateTableSelect();
     }, (error) => {
@@ -279,20 +279,20 @@
       document.getElementById('statusBar').innerText = '✕ 連線失敗，請檢查金鑰設定';
     });
 
-    // 3. 儲存資料回 Firebase
+    // 3. 將資料寫回 Firebase
     function saveToFirebase() {
       set(tablesRef, localTablesData).catch((err) => {
-        alert("儲存失敗：" + err.message);
+        alert("資料儲存失敗：" + err.message);
       });
     }
 
-    // 4. 渲染桌位平面圖（不帶人數顯示）
+    // 4. 渲染平面桌位圖（無人數顯示）
     function renderTables() {
       const grid = document.getElementById('layoutGrid');
       grid.innerHTML = '';
 
       if (localTablesData.length === 0) {
-        grid.innerHTML = '<div style="color:#999; grid-column:1/-1;">目前沒有桌位，請從左側新增。</div>';
+        grid.innerHTML = '<div style="color:#999; grid-column:1/-1;">目前無桌位，請從左側新增。</div>';
         return;
       }
 
@@ -300,7 +300,7 @@
         const card = document.createElement('div');
         card.className = 'table-card';
         
-        // 標題區域：僅顯示桌名，不顯示人數
+        // 標題區域：僅呈現桌名與刪除按鈕
         const header = document.createElement('div');
         header.className = 'table-header';
         header.innerHTML = `
@@ -330,7 +330,7 @@
       });
     }
 
-    // 5. 更新選單
+    // 5. 更新下拉選單
     function updateTableSelect() {
       const select = document.getElementById('tableSelect');
       select.innerHTML = '';
@@ -342,7 +342,7 @@
       });
     }
 
-    // 6. 操作功能掛載到 window，供 HTML 事件呼叫
+    // 6. 將互動邏輯掛載至 window 全域，確保 onclick 可正常呼叫
     window.addGuest = function() {
       const nameInput = document.getElementById('guestName');
       const name = nameInput.value.trim();
@@ -359,13 +359,13 @@
         if (!table.guests) table.guests = [];
         table.guests.push({ name, category });
         nameInput.value = '';
-        saveToFirebase(); // 觸發同步
+        saveToFirebase();
       }
     };
 
     window.removeGuest = function(tableIndex, guestIndex) {
       localTablesData[tableIndex].guests.splice(guestIndex, 1);
-      saveToFirebase(); // 觸發同步
+      saveToFirebase();
     };
 
     window.addTable = function() {
@@ -384,13 +384,13 @@
 
       localTablesData.push(newTable);
       nameInput.value = '';
-      saveToFirebase(); // 觸發同步
+      saveToFirebase();
     };
 
     window.deleteTable = function(tableIndex) {
-      if (confirm(`確定要刪除「${localTablesData[tableIndex].name}」嗎？裡面的賓客也會一併移除。`)) {
+      if (confirm(`確定要刪除「${localTablesData[tableIndex].name}」嗎？`)) {
         localTablesData.splice(tableIndex, 1);
-        saveToFirebase(); // 觸發同步
+        saveToFirebase();
       }
     };
   </script>
