@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>婚禮桌位平面圖系統</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>婚禮桌位平面配置圖</title>
   <style>
     :root {
       --primary-color: #8C7A6B;
@@ -23,28 +23,30 @@
     body {
       background-color: var(--bg-color);
       color: var(--text-color);
-      padding: 20px;
+      padding: 12px;
     }
 
     h1 {
       text-align: center;
       color: var(--primary-color);
-      margin-bottom: 20px;
-      font-weight: 500;
+      margin-bottom: 16px;
+      font-size: 20px;
+      font-weight: 600;
     }
 
+    /* 容器佈局：預設電腦版雙欄 */
     .container {
       max-width: 1200px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 300px 1fr;
-      gap: 20px;
+      gap: 16px;
     }
 
     /* 邊欄控制區 */
     .sidebar {
       background: var(--card-bg);
-      padding: 20px;
+      padding: 16px;
       border-radius: 8px;
       border: 1px solid var(--border-color);
       box-shadow: 0 2px 4px rgba(0,0,0,0.02);
@@ -52,33 +54,36 @@
     }
 
     .form-group {
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
 
     .form-group label {
       display: block;
-      margin-bottom: 5px;
-      font-size: 14px;
+      margin-bottom: 4px;
+      font-size: 13px;
       font-weight: 600;
     }
 
     .form-group input, .form-group select {
       width: 100%;
-      padding: 8px 12px;
+      padding: 10px 12px; /* 加大觸控範圍 */
       border: 1px solid var(--border-color);
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 14px;
+      background-color: #FFF;
+      -webkit-appearance: none;
     }
 
     button {
       width: 100%;
-      padding: 10px;
+      padding: 12px;
       background-color: var(--primary-color);
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 15px;
+      font-weight: 500;
       transition: opacity 0.2s;
     }
 
@@ -86,11 +91,11 @@
       opacity: 0.9;
     }
 
-    /* 主畫面平面圖區域 */
+    /* 平面圖區域 */
     .layout-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
       align-items: start;
     }
 
@@ -98,8 +103,8 @@
       background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      padding: 15px;
-      min-height: 180px;
+      padding: 14px;
+      min-height: 150px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.02);
       display: flex;
       flex-direction: column;
@@ -108,14 +113,14 @@
     .table-header {
       border-bottom: 2px solid var(--bg-color);
       padding-bottom: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
     .table-title {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
       color: var(--primary-color);
     }
@@ -124,10 +129,10 @@
       background: none;
       border: none;
       color: #CCC;
-      font-size: 16px;
+      font-size: 18px;
       cursor: pointer;
       width: auto;
-      padding: 0 4px;
+      padding: 4px 8px;
     }
 
     .delete-table-btn:hover {
@@ -138,12 +143,12 @@
       flex: 1;
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
       align-content: flex-start;
-      min-height: 100px;
+      min-height: 80px;
       padding: 8px;
       background: #FAFAFA;
-      border-radius: 4px;
+      border-radius: 6px;
     }
 
     .guest-tag {
@@ -153,7 +158,8 @@
       color: white;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
+      word-break: break-all;
     }
 
     /* 賓客分類標籤顏色 */
@@ -166,19 +172,36 @@
     .delete-guest-btn {
       cursor: pointer;
       font-weight: bold;
-      opacity: 0.7;
-    }
-
-    .delete-guest-btn:hover {
-      opacity: 1;
+      opacity: 0.8;
+      padding: 0 2px;
     }
 
     .status-bar {
-      grid-column: 1 / -1;
       font-size: 12px;
       color: #888;
       text-align: right;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
+    }
+
+    /* 📱 手機版響應式（CSS Media Query）修復 */
+    @media (max-width: 768px) {
+      body {
+        padding: 8px;
+      }
+
+      .container {
+        grid-template-columns: 1fr; /* 切換為單欄上下佈局 */
+        gap: 12px;
+      }
+
+      .layout-grid {
+        grid-template-columns: 1fr; /* 手機上桌位卡片單欄滿版 */
+        gap: 12px;
+      }
+
+      .table-card {
+        min-height: auto;
+      }
     }
   </style>
 </head>
@@ -189,7 +212,7 @@
   <div class="container">
     <!-- 控制面板 -->
     <div class="sidebar">
-      <h2 style="font-size: 16px; margin-bottom: 15px;">新增賓客</h2>
+      <h2 style="font-size: 15px; margin-bottom: 12px;">新增賓客</h2>
       <div class="form-group">
         <label>賓客姓名</label>
         <input type="text" id="guestName" placeholder="請輸入姓名">
@@ -210,7 +233,7 @@
       </div>
       <button onclick="addGuest()">新增至桌位</button>
 
-      <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-color);">
+      <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color);">
 
       <div class="form-group">
         <label>新增桌號/桌名</label>
@@ -247,7 +270,6 @@
     const db = getDatabase(app);
     const tablesRef = ref(db, 'wedding_tables');
 
-    // 全域變數儲存本地桌位狀態
     let localTablesData = [];
 
     // 2. 監聽 Realtime Database 變化
@@ -256,14 +278,12 @@
       document.getElementById('statusBar').innerText = '● 即時連線同步中';
       
       if (data) {
-        // 安全轉換：處理 Firebase 將陣列轉成 Object 或包含 null 的情況
         const rawList = Array.isArray(data) ? data : Object.values(data);
         localTablesData = rawList.filter(Boolean).map(table => ({
           ...table,
           guests: table.guests ? (Array.isArray(table.guests) ? table.guests : Object.values(table.guests)).filter(Boolean) : []
         }));
       } else {
-        // 若資料庫完全空的，初始化預設桌位
         localTablesData = [
           { id: "t1", name: "主桌", guests: [] },
           { id: "t2", name: "男方親友桌 A", guests: [] }
@@ -271,7 +291,6 @@
         saveToFirebase();
       }
 
-      // 當資料庫有變化時，重新繪製畫面與選單
       renderTables();
       updateTableSelect();
     }, (error) => {
@@ -279,20 +298,20 @@
       document.getElementById('statusBar').innerText = '✕ 連線失敗，請檢查金鑰設定';
     });
 
-    // 3. 將資料寫回 Firebase
+    // 3. 寫回 Firebase
     function saveToFirebase() {
       set(tablesRef, localTablesData).catch((err) => {
         alert("資料儲存失敗：" + err.message);
       });
     }
 
-    // 4. 渲染平面桌位圖（無人數顯示）
+    // 4. 繪製桌位平面圖（無人數顯示）
     function renderTables() {
       const grid = document.getElementById('layoutGrid');
       grid.innerHTML = '';
 
       if (localTablesData.length === 0) {
-        grid.innerHTML = '<div style="color:#999; grid-column:1/-1;">目前無桌位，請從左側新增。</div>';
+        grid.innerHTML = '<div style="color:#999; grid-column:1/-1; text-align:center; padding:20px;">目前無桌位，請新增桌位。</div>';
         return;
       }
 
@@ -300,7 +319,6 @@
         const card = document.createElement('div');
         card.className = 'table-card';
         
-        // 標題區域：僅呈現桌名與刪除按鈕
         const header = document.createElement('div');
         header.className = 'table-header';
         header.innerHTML = `
@@ -309,7 +327,6 @@
         `;
         card.appendChild(header);
 
-        // 賓客標籤區域
         const guestList = document.createElement('div');
         guestList.className = 'guest-list';
         
@@ -330,7 +347,7 @@
       });
     }
 
-    // 5. 更新下拉選單
+    // 5. 更新選單
     function updateTableSelect() {
       const select = document.getElementById('tableSelect');
       select.innerHTML = '';
@@ -342,7 +359,7 @@
       });
     }
 
-    // 6. 將互動邏輯掛載至 window 全域，確保 onclick 可正常呼叫
+    // 6. 全域互動邏輯
     window.addGuest = function() {
       const nameInput = document.getElementById('guestName');
       const name = nameInput.value.trim();
