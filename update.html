@@ -1,271 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>婚禮桌位平面配置圖</title>
   
-  <!-- 引入 Firebase 9 傳統相容版 SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <title>蘇鴻楷 & 吳亭蓉 婚禮座位查詢系統</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Firebase SDK (v9 模組化引入) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  <style>
-    :root {
-      --primary-color: #8C7A6B;
-      --bg-color: #F9F8F6;
-      --card-bg: #FFFFFF;
-      --border-color: #E2DDD7;
-      --text-color: #4A4A4A;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    }
-
-    body {
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      padding: 16px;
-    }
-
-    h1 {
-      text-align: center;
-      color: var(--primary-color);
-      margin-bottom: 24px;
-      font-size: 22px;
-      font-weight: 600;
-    }
-
-    /* 佈局容器 */
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 24px;
-      align-items: start;
-    }
-
-    /* 左側邊欄控制區 */
-    .sidebar {
-      background: var(--card-bg);
-      padding: 20px;
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .form-group input, .form-group select {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      font-size: 14px;
-      background-color: #FFF;
-      outline: none;
-    }
-
-    .form-group input:focus, .form-group select:focus {
-      border-color: var(--primary-color);
-    }
-
-    /* 嚴格指定只有 sidebar 內的 button 才套用 100% 寬度，避免干擾右側卡片 */
-    .sidebar button {
-      width: 100%;
-      padding: 12px;
-      background-color: var(--primary-color);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 15px;
-      font-weight: 500;
-      transition: opacity 0.2s;
-    }
-
-    .sidebar button:hover {
-      opacity: 0.9;
-    }
-
-    /* 右側主區域 */
-    .main-content {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      width: 100%;
-    }
-
-    .status-bar {
-      font-size: 12px;
-      color: #888;
-      text-align: right;
-    }
-
-    /* 桌位網格 */
-    .layout-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
-      width: 100%;
-    }
-
-    /* 桌位卡片 */
-    .table-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 16px;
-      min-height: 160px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* 卡片標題區：使用 Flexbox 並確保文字不換行 */
-    .table-header {
-      border-bottom: 2px solid var(--bg-color);
-      padding-bottom: 10px;
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px; /* 標題與按鈕的間距 */
-    }
-
-    .table-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--primary-color);
-      white-space: nowrap; /* 強制不換行 */
-      overflow: hidden;
-      text-overflow: ellipsis; /* 文字過長時顯示省略號 */
-      flex: 1;
-    }
-
-    /* 修復：獨立設定刪除桌位按鈕，絕不佔滿寬度 */
-    button.delete-table-btn {
-      background: none;
-      border: none;
-      color: #CCC;
-      font-size: 16px;
-      cursor: pointer;
-      padding: 4px;
-      width: auto; 
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    button.delete-table-btn:hover {
-      color: #FF4D4F;
-    }
-
-    /* 賓客名單區域 */
-    .guest-list {
-      flex: 1;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-content: flex-start;
-      min-height: 90px;
-      padding: 10px;
-      background: #FAFAFA;
-      border-radius: 6px;
-    }
-
-    .guest-tag {
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 13px;
-      color: white;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* 賓客分類標籤顏色 */
-    .tag-男方親友 { background-color: #6C8EBF; }
-    .tag-女方親友 { background-color: #E19595; }
-    .tag-主桌賓客 { background-color: #D6B656; }
-    .tag-工作人員 { background-color: #82B366; }
-    .tag-一般賓客 { background-color: #999999; }
-
-    .delete-guest-btn {
-      cursor: pointer;
-      font-weight: bold;
-      opacity: 0.8;
-    }
-    
-    .delete-guest-btn:hover {
-      opacity: 1;
-    }
-
-    /* 響應式：手機版變單欄 */
-    @media (max-width: 768px) {
-      .container {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
-</head>
-<body>
-
-  <h1>婚禮桌位平面配置圖</h1>
-
-  <div class="container">
-    <div class="sidebar">
-      <h2 style="font-size: 16px; margin-bottom: 16px; color: var(--primary-color);">新增賓客</h2>
-      <div class="form-group">
-        <label>賓客姓名</label>
-        <input type="text" id="guestName" placeholder="請輸入姓名">
-      </div>
-      <div class="form-group">
-        <label>賓客分類標籤</label>
-        <select id="guestCategory">
-          <option value="主桌賓客">主桌賓客</option>
-          <option value="男方親友" selected>男方親友</option>
-          <option value="女方親友">女方親友</option>
-          <option value="工作人員">工作人員</option>
-          <option value="一般賓客">一般賓客</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>分配桌次</label>
-        <select id="tableSelect"></select>
-      </div>
-      <button onclick="addGuest()">新增至桌位</button>
-
-      <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border-color);">
-
-      <div class="form-group">
-        <label>新增桌號 / 桌名</label>
-        <input type="text" id="tableName" placeholder="例如：男方大學同學桌">
-      </div>
-      <button onclick="addTable()" style="background-color: #A09E9C;">新增空桌位</button>
-    </div>
-
-    <div class="main-content">
-      <div id="statusBar" class="status-bar">初始化中...</div>
-      <div class="layout-grid" id="layoutGrid"></div>
-    </div>
-  </div>
-
-  <script>
-    // === 1. 這裡請替換為您的 Firebase 金鑰 ===
+    // ⚠️ 請在此處填入你在 Firebase 主控台取得的 firebaseConfig
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -276,198 +25,915 @@
       appId: "YOUR_APP_ID"
     };
 
-    let db, tablesRef;
+    // 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const dbRef = ref(db, 'wedding_seating');
+
+    // 將 Firebase 實體掛載到 window 供全域函數使用
+    window.db = db;
+    window.dbRef = dbRef;
+    window.setDatabaseData = (data) => set(dbRef, data);
+
+    // 即時監聽雲端資料變更 (雙向同步核心)
+    onValue(dbRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        window.appData = data;
+      } else {
+        // 若雲端尚無資料，寫入預設初值
+        window.setDatabaseData(window.defaultData);
+        window.appData = window.defaultData;
+      }
+      // 收到最新資料後重新渲染畫面
+      if (window.renderFrontend) window.renderFrontend();
+      if (window.refreshAdminData) window.refreshAdminData();
+      if (window.renderEditorMap) window.renderEditorMap();
+      
+      const statusEl = document.getElementById('syncStatus');
+      if (statusEl) {
+        statusEl.innerText = "🟢 雲端同步中";
+        statusEl.className = "text-[10px] text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-full border border-green-200";
+      }
+    });
+  </script>
+
+  <style>
+    html, body {
+      width: 100%;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Noto Serif TC', -apple-system, sans-serif;
+      background-color: #F8F6F0;
+      background-image: radial-gradient(#E5DEC9 1.2px, transparent 1.2px);
+      background-size: 20px 20px;
+      color: #52473C;
+    }
+
+    .font-serif-custom { font-family: 'Noto Serif TC', serif; }
     
-    // 預設假資料，防止空白畫面
-    let localTablesData = [
-      { id: "t1", name: "主桌", guests: [] },
-      { id: "t2", name: "男方親友桌", guests: [] }
-    ];
-
-    try {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.database();
-      tablesRef = db.ref('wedding_tables');
-    } catch (e) {
-      console.warn("Firebase 尚未設定或有誤，目前以離線模式運作", e);
+    .table-highlight { 
+      box-shadow: 0 0 0 6px #B09F8C, 0 12px 24px -4px rgba(176, 159, 140, 0.5); 
+      transform: translate(-50%, -50%) scale(1.15) !important;
+      z-index: 30 !important;
+      animation: tableGlowPulse 1.8s infinite ease-in-out;
     }
 
-    // 先渲染一次畫面
-    renderTables();
-    updateTableSelect();
+    @keyframes tableGlowPulse {
+      0% { box-shadow: 0 0 0 0px rgba(176, 159, 140, 0.8), 0 8px 16px rgba(0,0,0,0.1); }
+      50% { box-shadow: 0 0 0 18px rgba(176, 159, 140, 0), 0 12px 24px rgba(176, 159, 140, 0.4); }
+      100% { box-shadow: 0 0 0 0px rgba(176, 159, 140, 0), 0 8px 16px rgba(0,0,0,0.1); }
+    }
 
-    // === 2. 監聽 Firebase (如果有設定的話) ===
-    if (tablesRef) {
-      tablesRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        document.getElementById('statusBar').innerText = '● 即時連線同步中';
+    .table-circle-item {
+      aspect-ratio: 1 / 1 !important;
+      border-radius: 50% !important;
+      transform: translate(-50%, -50%);
+      touch-action: none !important;
+      -webkit-user-drag: none;
+      box-sizing: border-box;
+      will-change: left, top;
+    }
+
+    .is-dragging {
+      z-index: 50 !important;
+      border-color: #52473C !important;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3) !important;
+      opacity: 0.9;
+      transform: translate(-50%, -50%) scale(1.08) !important;
+      transition: transform 0.05s ease;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-8">
+
+  <!-- 頂部導覽列 -->
+  <header class="w-full max-w-5xl flex justify-between items-center mb-4 sm:mb-6 pt-2 px-2">
+    <div class="flex items-center space-x-2">
+      <span class="w-2.5 h-2.5 rounded-full bg-[#E5DEC9]"></span>
+      <span class="text-xs font-bold tracking-widest text-[#A39281] uppercase">GUEST PORTAL</span>
+      <span id="syncStatus" class="text-[10px] text-amber-600 font-bold bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">🟡 連線中...</span>
+    </div>
+    <button onclick="toggleAdminMode()" id="topToggleText" class="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold bg-[#52473C] text-white hover:bg-[#3D342C] transition shadow-md flex items-center gap-1.5 cursor-pointer">
+      <span>⚙️</span> 後台管理
+    </button>
+  </header>
+
+  <main class="w-full max-w-5xl flex flex-col items-center">
+
+    <!-- 前台畫面 -->
+    <div id="frontendView" class="w-full flex flex-col items-center space-y-5 sm:space-y-6">
+      
+      <div class="text-center space-y-1.5 sm:space-y-2">
+        <span class="px-3 py-1 rounded-full bg-white/80 border border-[#ECE4DA] text-[10px] sm:text-[11px] text-[#A39281] tracking-widest inline-block">WEDDING SEATING CHART</span>
+        <h1 class="text-2xl sm:text-4xl font-serif-custom font-bold text-[#52473C] tracking-wide mt-1">
+          <span id="displayGroom">蘇鴻楷</span> <span class="text-[#A39281] font-normal">&</span> <span id="displayBride">吳亭蓉</span>
+        </h1>
+        <p class="text-xs text-[#A39281] tracking-wider">誠摯邀請您 參與我們的幸福時刻</p>
+      </div>
+
+      <div class="w-full bg-white/70 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-[#ECE4DA] shadow-sm grid grid-cols-3 gap-1 sm:gap-2 text-center text-xs">
+        <div class="space-y-0.5 sm:space-y-1">
+          <p class="text-[10px] sm:text-[11px] text-[#A39281]">宴客日期</p>
+          <p id="displayDateTime" class="font-bold text-[#52473C] text-xs sm:text-base">2026.11.07(六)</p>
+        </div>
+        <div class="space-y-0.5 sm:space-y-1 border-x border-[#ECE4DA]">
+          <p class="text-[10px] sm:text-[11px] text-[#A39281]">📍 宴客地點</p>
+          <p id="displayLocation" class="font-bold text-[#52473C] text-xs sm:text-base">台南晶英酒店2樓</p>
+        </div>
+        <div class="space-y-0.5 sm:space-y-1">
+          <p class="text-[10px] sm:text-[11px] text-[#A39281]">🥂 宴會廳別</p>
+          <p id="displayHall" class="font-bold text-[#52473C] text-xs sm:text-base">明倫仁德廳</p>
+        </div>
+      </div>
+
+      <!-- 搜尋區塊 -->
+      <div class="w-full bg-white/70 backdrop-blur-md rounded-2xl sm:rounded-3xl p-4 border border-[#ECE4DA] shadow-sm flex flex-col items-center space-y-2">
+        <p class="text-xs text-[#8C7A6B]">請輸入您的「賓客姓名」快速查詢席位桌號</p>
+        <div class="relative w-full max-w-md">
+          <input type="text" id="frontendSearchInput" oninput="handleSearchLive()" onkeydown="if(event.key==='Enter') handleSearch()" placeholder="例如：蘇鴻楷、吳亭蓉..." class="w-full px-5 py-2.5 sm:py-3 rounded-full bg-white border border-[#ECE4DA] text-xs focus:outline-none focus:ring-2 focus:ring-[#B09F8C] shadow-inner text-[#52473C]">
+          <button onclick="handleSearch()" class="absolute right-2 top-1.5 sm:top-2 px-3 py-1 sm:py-1.5 bg-[#B09F8C] text-white rounded-full text-xs font-bold hover:opacity-90 transition cursor-pointer">搜尋</button>
+          
+          <div id="searchDropdown" class="hidden absolute left-0 right-0 top-12 bg-white border border-[#ECE4DA] rounded-2xl shadow-xl z-30 max-h-48 overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <!-- 宴會區域 -->
+      <div class="w-full bg-white/70 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-[#ECE4DA] shadow-sm flex flex-col items-center relative min-h-[500px]">
+        <div class="mb-4 sm:mb-6 px-6 py-1.5 sm:px-8 sm:py-2 rounded-full bg-[#EFE8DF] border border-[#ECE4DA] text-xs font-bold text-[#786A5C] tracking-wider shadow-xs">
+          ◆ 主 舞 臺 ◆ (STAGE)
+        </div>
+
+        <div class="relative w-full max-w-[500px] aspect-[5/7.5] bg-white rounded-2xl sm:rounded-3xl border border-[#ECE4DA] shadow-inner overflow-hidden mx-auto">
+          <svg id="frontendCarpetSvg" class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 750" preserveAspectRatio="xMidYMin meet"></svg>
+          <div id="frontendNodesContainer" class="absolute inset-0 w-full h-full"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 後台畫面 -->
+    <div id="adminView" class="hidden w-full flex flex-col space-y-6">
+      
+      <!-- 驗證密碼 -->
+      <div id="adminAuthBox" class="w-full bg-white/90 backdrop-blur-md rounded-3xl p-8 sm:p-10 border border-[#ECE4DA] shadow-lg flex flex-col items-center justify-center space-y-4">
+        <div class="w-12 h-12 rounded-full bg-[#F5EFE6] flex items-center justify-center text-xl">🔒</div>
+        <h3 class="text-sm font-bold text-[#52473C]">後台權限驗證</h3>
+        <input type="password" id="adminPasswordInput" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter') checkAdminPassword()" class="px-4 py-2 border border-[#ECE4DA] rounded-xl text-xs text-center focus:outline-none w-64">
+        <button onclick="checkAdminPassword()" class="px-6 py-2 bg-[#B09F8C] text-white rounded-xl text-xs font-bold hover:opacity-90 transition cursor-pointer">解鎖後台</button>
+      </div>
+
+      <!-- 後台管理控制台 -->
+      <div id="adminContent" class="hidden flex flex-col space-y-6">
         
-        if (data) {
-          const rawList = Array.isArray(data) ? data : Object.values(data);
-          localTablesData = rawList.filter(Boolean).map(table => ({
-            ...table,
-            guests: table.guests ? (Array.isArray(table.guests) ? table.guests : Object.values(table.guests)).filter(Boolean) : []
-          }));
-        } else {
-          // 資料庫完全空的時候，自動寫入預設桌位
-          tablesRef.set(localTablesData);
-        }
+        <div class="bg-[#F9F7F2]/80 border border-[#ECE4DA] rounded-3xl p-6 shadow-sm flex justify-between items-start">
+          <div>
+            <h1 class="text-lg font-bold text-[#52473C] flex items-center gap-2">
+              <span>⚙️</span> 婚禮控制中心 & 後台管理系統
+            </h1>
+            <p class="text-xs text-[#A39281] mt-1">拖曳桌位或新增資料時，會即時透過 Firebase 自動同步至所有手機與電腦。</p>
+          </div>
+          <button onclick="exportGuestCSV()" class="px-4 py-2 bg-white border border-[#ECE4DA] rounded-xl text-xs text-[#786A5C] hover:bg-[#F5EFE6] transition flex items-center gap-1 shadow-xs cursor-pointer">
+            📄 匯出 CSV
+          </button>
+        </div>
 
-        renderTables();
-        updateTableSelect();
-      }, (error) => {
-        console.error("Firebase 讀取錯誤:", error);
-        document.getElementById('statusBar').innerText = '✕ 雲端連線失敗';
-      });
-    } else {
-      document.getElementById('statusBar').innerText = '✕ 未設定 Firebase，單機運作中';
-    }
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-white border border-[#ECE4DA] rounded-2xl p-4 shadow-xs">
+            <p class="text-[11px] text-[#A39281]">總桌數</p>
+            <p class="text-2xl font-bold text-[#52473C] mt-1"><span id="statTotalTables">0</span> <span class="text-xs font-normal text-[#A39281]">桌</span></p>
+          </div>
+          <div class="bg-white border border-[#ECE4DA] rounded-2xl p-4 shadow-xs">
+            <p class="text-[11px] text-[#A39281]">總賓客人數</p>
+            <p class="text-2xl font-bold text-[#52473C] mt-1"><span id="statTotalGuests">0</span> <span class="text-xs font-normal text-[#A39281]">人</span></p>
+          </div>
+          <div class="bg-white border border-[#ECE4DA] rounded-2xl p-4 shadow-xs">
+            <p class="text-[11px] text-[#A39281]">目前新人</p>
+            <p id="statCoupleNames" class="text-sm font-bold text-[#52473C] mt-2 truncate">-- & --</p>
+          </div>
+          <div class="bg-white border border-[#ECE4DA] rounded-2xl p-4 shadow-xs">
+            <p class="text-[11px] text-[#A39281]">宴客日期</p>
+            <p id="statWeddingDate" class="text-sm font-bold text-[#52473C] mt-2 truncate">----.--.--</p>
+          </div>
+        </div>
 
-    function saveToFirebase() {
-      if (tablesRef) {
-        tablesRef.set(localTablesData).catch((err) => {
-          console.error("儲存失敗：", err);
-        });
+        <!-- 分頁標籤 -->
+        <div class="flex space-x-2 sm:space-x-3 border-b border-[#ECE4DA] pb-2 overflow-x-auto">
+          <button onclick="switchAdminTab('tables')" id="tabBtn-tables" class="px-4 sm:px-5 py-2 rounded-full text-xs font-bold bg-[#A39281] text-white flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap">
+            <span>🎎</span> 桌次與賓客
+          </button>
+          <button onclick="switchAdminTab('canvas')" id="tabBtn-canvas" class="px-4 sm:px-5 py-2 rounded-full text-xs text-[#786A5C] hover:bg-[#EFE8DF] flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap">
+            <span>🎨</span> 編輯平面圖與紅毯
+          </button>
+          <button onclick="switchAdminTab('info')" id="tabBtn-info" class="px-4 sm:px-5 py-2 rounded-full text-xs text-[#786A5C] hover:bg-[#EFE8DF] flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap">
+            <span>♥</span> 婚禮資訊與密碼
+          </button>
+        </div>
+
+        <!-- 頁籤：桌次與賓客 -->
+        <div id="tab-tables" class="space-y-6">
+          <div class="bg-[#F9F7F2]/80 border border-[#ECE4DA] rounded-3xl p-6 shadow-sm space-y-4">
+            <h2 class="text-sm font-bold text-[#52473C] flex items-center gap-1.5">
+              <span>👨‍👩‍👧‍👦</span> 新增桌次
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label class="text-[11px] text-[#A39281] block mb-1">桌號代碼 *</label>
+                <input type="text" id="addTableCode" placeholder="例如：T10" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
+              </div>
+              <div>
+                <label class="text-[11px] text-[#A39281] block mb-1">桌次名稱 *</label>
+                <input type="text" id="addTableName" placeholder="例如：男方大學同學桌" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
+              </div>
+              <div>
+                <label class="text-[11px] text-[#A39281] block mb-1">分類屬性</label>
+                <input type="text" id="addTableCategory" placeholder="例如：高中好友" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
+              </div>
+              <div class="flex items-end">
+                <button onclick="addNewTable()" class="w-full py-2.5 bg-[#A39281] text-white rounded-xl text-xs font-bold hover:bg-[#8C7A6B] transition cursor-pointer">新增桌次</button>
+              </div>
+            </div>
+
+            <div id="adminTableCardGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2"></div>
+          </div>
+
+          <div class="bg-[#F9F7F2]/80 border border-[#ECE4DA] rounded-3xl p-6 shadow-sm space-y-4">
+            <h2 class="text-sm font-bold text-[#52473C] flex items-center gap-1.5">
+              <span>👤</span> 新增單筆賓客
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <div>
+                <label class="text-[11px] text-[#A39281] block mb-1">賓客姓名 *</label>
+                <input type="text" id="addGuestName" placeholder="例如：李小華" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
+              </div>
+              <div>
+                <label class="text-[11px] text-[#A39281] block mb-1">分配席位桌號 *</label>
+                <select id="addGuestTableSelect" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none"></select>
+              </div>
+              <div>
+                <label class="text-[11px] text-[#A39281] block mb-1">分類標籤</label>
+                <input type="text" id="addGuestTag" placeholder="例如：男方朋友、素食" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
+              </div>
+              <div>
+                <label class="text-[11px] text-[#A39281] block mb-1">個人備註</label>
+                <input type="text" id="addGuestNote" placeholder="例如：攜伴1人" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
+              </div>
+              <div class="flex items-end">
+                <button onclick="addNewGuest()" class="w-full py-2.5 bg-[#A39281] text-white rounded-xl text-xs font-bold hover:bg-[#8C7A6B] transition cursor-pointer">確定新增</button>
+              </div>
+            </div>
+
+            <div class="mt-4 border border-[#ECE4DA] rounded-2xl bg-white overflow-x-auto">
+              <table class="w-full text-xs text-left min-w-[500px]">
+                <thead class="bg-[#F9F7F2] text-[#A39281] border-b border-[#ECE4DA]">
+                  <tr>
+                    <th class="p-3">姓名</th>
+                    <th class="p-3">安排桌次</th>
+                    <th class="p-3">分類標籤</th>
+                    <th class="p-3">備註</th>
+                    <th class="p-3 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="adminGuestTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 頁籤：編輯平面圖與紅毯 -->
+        <div id="tab-canvas" class="hidden bg-[#F9F7F2]/80 border border-[#ECE4DA] rounded-3xl p-6 shadow-sm space-y-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-sm font-bold text-[#52473C] flex items-center gap-2">
+              <span>🎨</span> 調整桌位 (按住拖曳桌子) 與 L 型紅毯控制
+            </h2>
+            <button onclick="saveCanvasLayout()" class="px-5 py-2 bg-[#A39281] text-white rounded-xl text-xs font-bold hover:bg-[#8C7A6B] transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+              <span>💾</span> 儲存同步至雲端
+            </button>
+          </div>
+
+          <div class="bg-white border border-[#ECE4DA] rounded-2xl p-4 shadow-xs space-y-3">
+            <h3 class="text-xs font-bold text-[#786A5C] flex items-center gap-1.5">
+              <span>📐</span> L 型紅毯座標設定：
+            </h3>
+            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3 items-end">
+              <div>
+                <label class="text-[10px] text-[#A39281] block mb-1">起點 (X1, Y1)</label>
+                <div class="flex gap-1">
+                  <input type="number" id="carpetX1" class="w-1/2 p-2 bg-[#F9F7F2] border border-[#ECE4DA] rounded-lg text-xs text-center">
+                  <input type="number" id="carpetY1" class="w-1/2 p-2 bg-[#F9F7F2] border border-[#ECE4DA] rounded-lg text-xs text-center">
+                </div>
+              </div>
+              <div>
+                <label class="text-[10px] text-[#A39281] block mb-1">折點 (X2, Y2)</label>
+                <div class="flex gap-1">
+                  <input type="number" id="carpetX2" class="w-1/2 p-2 bg-[#F9F7F2] border border-[#ECE4DA] rounded-lg text-xs text-center">
+                  <input type="number" id="carpetY2" class="w-1/2 p-2 bg-[#F9F7F2] border border-[#ECE4DA] rounded-lg text-xs text-center">
+                </div>
+              </div>
+              <div>
+                <label class="text-[10px] text-[#A39281] block mb-1">終點 (X3, Y3)</label>
+                <div class="flex gap-1">
+                  <input type="number" id="carpetX3" class="w-1/2 p-2 bg-[#F9F7F2] border border-[#ECE4DA] rounded-lg text-xs text-center">
+                  <input type="number" id="carpetY3" class="w-1/2 p-2 bg-[#F9F7F2] border border-[#ECE4DA] rounded-lg text-xs text-center">
+                </div>
+              </div>
+              <div>
+                <label class="text-[10px] text-[#A39281] block mb-1">寬度 (Width)</label>
+                <input type="number" id="carpetWidth" class="w-full p-2 bg-[#F9F7F2] border border-[#ECE4DA] rounded-lg text-xs text-center">
+              </div>
+              <div class="col-span-2 sm:col-span-4 md:col-span-1">
+                <button onclick="updateCarpetFromInputs()" class="w-full py-2 bg-[#EFE8DF] text-[#786A5C] hover:bg-[#E5DEC9] rounded-xl text-xs font-bold transition border border-[#ECE4DA] cursor-pointer">
+                  更新紅毯
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="editorCanvasBox" class="relative w-full max-w-[500px] aspect-[5/7.5] bg-white rounded-3xl border border-[#ECE4DA] shadow-inner overflow-hidden mx-auto select-none touch-none">
+            <svg id="editorCarpetSvg" class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 500 750" preserveAspectRatio="xMidYMin meet"></svg>
+            <div id="editorNodesContainer" class="absolute inset-0 w-full h-full"></div>
+          </div>
+        </div>
+
+        <!-- 頁籤：基本資訊 -->
+        <div id="tab-info" class="hidden bg-[#F9F7F2]/80 border border-[#ECE4DA] rounded-3xl p-6 shadow-sm space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[11px] text-[#A39281] block mb-1">新郎姓名</label>
+              <input type="text" id="cfgGroom" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
+            </div>
+            <div>
+              <label class="text-[11px] text-[#A39281] block mb-1">新娘姓名</label>
+              <input type="text" id="cfgBride" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
+            </div>
+          </div>
+          <div>
+            <label class="text-[11px] text-[#A39281] block mb-1">宴客日期</label>
+            <input type="text" id="cfgDateTime" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
+          </div>
+          <div>
+            <label class="text-[11px] text-[#A39281] block mb-1">地點</label>
+            <input type="text" id="cfgLocation" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
+          </div>
+          <div>
+            <label class="text-[11px] text-[#A39281] block mb-1">廳別</label>
+            <input type="text" id="cfgHall" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
+          </div>
+          <div>
+            <label class="text-[11px] text-[#A39281] block mb-1">後台管理密碼</label>
+            <input type="password" id="cfgPassword" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
+          </div>
+          <button onclick="saveWeddingInfo()" class="w-full py-2.5 bg-[#A39281] text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-[#8C7A6B]">更新基本資訊與密碼</button>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 搜尋結果賓客卡片 Modal -->
+  <div id="searchResultModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+    <div class="bg-[#FBF9F5] w-full max-w-sm rounded-3xl p-6 border border-[#ECE4DA] shadow-2xl space-y-5 text-center relative">
+      <button onclick="closeSearchModal()" class="absolute right-5 top-5 text-gray-400 hover:text-gray-600 text-lg cursor-pointer">✕</button>
+      
+      <div class="w-10 h-10 rounded-full bg-[#EFE8DF] flex items-center justify-center mx-auto text-sm text-[#A39281]">♥</div>
+      
+      <div>
+        <span class="text-[10px] text-[#A39281] tracking-widest uppercase block mb-1">WELCOME GUEST</span>
+        <h3 id="modalGuestName" class="text-2xl font-bold font-serif-custom text-[#52473C]"></h3>
+        <p id="modalGuestTag" class="text-xs text-[#B09F8C] mt-1 hidden"></p>
+      </div>
+
+      <div class="bg-[#F3EDE4] border border-[#ECE4DA] rounded-2xl p-5 space-y-1">
+        <p class="text-[11px] text-[#A39281]">您的席位桌號</p>
+        <p id="modalTableName" class="text-2xl font-bold font-serif-custom text-[#52473C]"></p>
+        <div class="pt-1">
+          <span id="modalTableCode" class="text-[10px] bg-white text-[#786A5C] px-3 py-1 rounded-full border border-[#ECE4DA] inline-block font-mono"></span>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button id="locateButton" onclick="locateSearchedTable()" class="flex-1 py-3 bg-[#B09F8C] text-white rounded-xl text-xs font-bold hover:bg-[#8C7A6B] transition shadow-xs cursor-pointer flex items-center justify-center gap-1">
+          <span>🎥</span> 查看平面圖定位
+        </button>
+        <button onclick="closeSearchModal()" class="px-5 py-3 bg-[#EFE8DF] text-[#786A5C] rounded-xl text-xs font-bold hover:bg-[#E5DEC9] transition cursor-pointer">
+          關閉
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-8 text-[11px] text-[#A39281] tracking-widest text-center">
+    WEDDING SEATING ARRANGEMENT SYSTEM
+  </footer>
+
+  <script>
+    window.defaultData = {
+      info: { groom: "蘇鴻楷", bride: "吳亭蓉", dateTime: "2026.11.07(六)", location: "台南晶英酒店2樓", hall: "明倫仁德廳" },
+      tables: [
+        { id: "T01", name: "主桌", category: "長輩親眷", top: 120, left: 250 },
+        { id: "T02", name: "女方長輩", category: "長輩親眷", top: 210, left: 160 },
+        { id: "T03", name: "男方長輩", category: "長輩親眷", top: 380, left: 360 },
+        { id: "T04", name: "女方親戚", category: "親戚", top: 330, left: 200 },
+        { id: "T05", name: "男方親戚", category: "親戚", top: 210, left: 320 },
+        { id: "T06", name: "女方好友", category: "朋友", top: 330, left: 120 },
+        { id: "T07", name: "新郎同事", category: "同事", top: 330, left: 290 },
+        { id: "T08", name: "新娘大學", category: "同學", top: 480, left: 200 },
+        { id: "T09", name: "男方好友", category: "朋友", top: 520, left: 320 }
+      ],
+      guests: [
+        { name: "蘇鴻楷", tableCode: "T01", tag: "新郎", note: "新人" },
+        { name: "吳亭蓉", tableCode: "T01", tag: "新娘", note: "新人" }
+      ],
+      lCarpet: { x1: 250, y1: 160, x2: 250, y2: 652, x3: 383, y3: 652, width: 20 },
+      password: "1234"
+    };
+
+    window.appData = window.defaultData;
+    var currentTargetTableId = null;
+
+    function saveData() {
+      if (window.setDatabaseData) {
+        window.setDatabaseData(window.appData);
       }
     }
 
-    // === 3. 渲染畫面邏輯 ===
-    function renderTables() {
-      const grid = document.getElementById('layoutGrid');
-      if (!grid) return;
-      grid.innerHTML = '';
+    function renderFrontend() {
+      if (!window.appData) return;
+      var data = window.appData;
 
-      if (!localTablesData || localTablesData.length === 0) {
-        grid.innerHTML = '<div style="color:#999; grid-column:1/-1; padding:30px; background:#fff; border-radius:8px; text-align:center; border: 1px dashed #ccc;">目前無桌位，請從左側新增。</div>';
+      document.getElementById('displayGroom').innerText = data.info?.groom || '';
+      document.getElementById('displayBride').innerText = data.info?.bride || '';
+      document.getElementById('displayDateTime').innerText = data.info?.dateTime || '';
+      document.getElementById('displayLocation').innerText = data.info?.location || '';
+      document.getElementById('displayHall').innerText = data.info?.hall || '';
+
+      document.getElementById('cfgGroom').value = data.info?.groom || '';
+      document.getElementById('cfgBride').value = data.info?.bride || '';
+      document.getElementById('cfgDateTime').value = data.info?.dateTime || '';
+      document.getElementById('cfgLocation').value = data.info?.location || '';
+      document.getElementById('cfgHall').value = data.info?.hall || '';
+      document.getElementById('cfgPassword').value = data.password || "1234";
+
+      var c = data.lCarpet || window.defaultData.lCarpet;
+      document.getElementById('carpetX1').value = c.x1;
+      document.getElementById('carpetY1').value = c.y1;
+      document.getElementById('carpetX2').value = c.x2;
+      document.getElementById('carpetY2').value = c.y2;
+      document.getElementById('carpetX3').value = c.x3;
+      document.getElementById('carpetY3').value = c.y3;
+      document.getElementById('carpetWidth').value = c.width;
+
+      document.getElementById('statTotalTables').innerText = (data.tables || []).length;
+      document.getElementById('statTotalGuests').innerText = (data.guests || []).length;
+      document.getElementById('statCoupleNames').innerText = (data.info?.groom || '') + ' & ' + (data.info?.bride || '');
+      document.getElementById('statWeddingDate').innerText = data.info?.dateTime || '';
+
+      var container = document.getElementById('frontendNodesContainer');
+      var svg = document.getElementById('frontendCarpetSvg');
+      container.innerHTML = '';
+      svg.innerHTML = '';
+
+      var polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      polyline.setAttribute('points', c.x1 + ',' + c.y1 + ' ' + c.x2 + ',' + c.y2 + ' ' + c.x3 + ',' + c.y3);
+      polyline.setAttribute('stroke', '#D8C5B3');
+      polyline.setAttribute('stroke-width', c.width || 20);
+      polyline.setAttribute('stroke-linecap', 'round');
+      polyline.setAttribute('fill', 'none');
+      svg.appendChild(polyline);
+
+      (data.tables || []).forEach(function(t) {
+        var circle = document.createElement('div');
+        circle.id = 'table-node-' + t.id;
+        circle.className = 'absolute table-circle-item w-16 h-16 sm:w-20 sm:h-20 bg-[#FAF6F0] border-2 border-[#D8C5B3] flex flex-col justify-center items-center text-center p-1 shadow-md transition-all';
+        
+        circle.style.top = ((t.top / 750) * 100) + '%';
+        circle.style.left = ((t.left / 500) * 100) + '%';
+
+        circle.innerHTML = '<span class="text-[10px] sm:text-xs font-bold font-serif-custom text-[#52473C] leading-tight truncate w-full px-0.5 pointer-events-none">' + t.name + '</span>' +
+                           '<span class="text-[8px] sm:text-[9px] text-[#A39281] mt-0.5 font-mono pointer-events-none">' + t.id + '</span>';
+
+        container.appendChild(circle);
+      });
+    }
+
+    function toggleAdminMode() {
+      var frontend = document.getElementById('frontendView');
+      var admin = document.getElementById('adminView');
+      if (admin.classList.contains('hidden')) {
+        frontend.classList.add('hidden');
+        admin.classList.remove('hidden');
+        document.getElementById('topToggleText').innerHTML = "<span>🏠</span> 前台檢視";
+      } else {
+        admin.classList.add('hidden');
+        frontend.classList.remove('hidden');
+        document.getElementById('topToggleText').innerHTML = "<span>⚙️</span> 後台管理";
+      }
+    }
+
+    function checkAdminPassword() {
+      var input = document.getElementById('adminPasswordInput').value.trim();
+      if (input === (window.appData.password || "1234")) {
+        document.getElementById('adminAuthBox').classList.add('hidden');
+        document.getElementById('adminContent').classList.remove('hidden');
+        refreshAdminData();
+        renderEditorMap();
+      } else {
+        alert("密碼錯誤！請重新輸入。");
+      }
+    }
+
+    function handleSearchLive() {
+      var keyword = document.getElementById('frontendSearchInput').value.trim().toLowerCase();
+      var dropdown = document.getElementById('searchDropdown');
+
+      if (!keyword || !window.appData.guests) {
+        dropdown.classList.add('hidden');
+        dropdown.innerHTML = '';
         return;
       }
 
-      localTablesData.forEach((table, tIndex) => {
-        const card = document.createElement('div');
-        card.className = 'table-card';
-        
-        const header = document.createElement('div');
-        header.className = 'table-header';
-        header.innerHTML = `
-          <div class="table-title" title="${table.name || '未命名桌'}">${table.name || '未命名桌'}</div>
-          <button class="delete-table-btn" title="刪除此桌" onclick="deleteTable(${tIndex})">✕</button>
-        `;
-        card.appendChild(header);
-
-        const guestList = document.createElement('div');
-        guestList.className = 'guest-list';
-        
-        if (table.guests && table.guests.length > 0) {
-          table.guests.forEach((guest, gIndex) => {
-            const tag = document.createElement('span');
-            tag.className = `guest-tag tag-${guest.category || '一般賓客'}`;
-            tag.innerHTML = `
-              ${guest.name}
-              <span class="delete-guest-btn" onclick="removeGuest(${tIndex}, ${gIndex})">×</span>
-            `;
-            guestList.appendChild(tag);
-          });
-        }
-
-        card.appendChild(guestList);
-        grid.appendChild(card);
+      var matches = window.appData.guests.filter(function(g) {
+        return (g.name && g.name.toLowerCase().indexOf(keyword) !== -1) ||
+               (g.tag && g.tag.toLowerCase().indexOf(keyword) !== -1);
       });
+
+      if (matches.length > 0) {
+        dropdown.innerHTML = matches.map(function(g) {
+          var tableObj = (window.appData.tables || []).find(function(t) { return t.id === g.tableCode; });
+          var tableName = tableObj ? tableObj.name : g.tableCode;
+          var tagBadge = g.tag ? '<span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded ml-1">' + g.tag + '</span>' : '';
+          return '<div onclick="selectGuestFromDropdown(\'' + g.name + '\')" class="px-4 py-2.5 text-xs text-left hover:bg-[#F9F7F2] cursor-pointer flex justify-between items-center border-b border-[#ECE4DA] last:border-none">' +
+                   '<span class="font-bold text-[#52473C]">' + g.name + tagBadge + '</span>' +
+                   '<span class="text-[10px] bg-[#EFE8DF] text-[#786A5C] px-2 py-0.5 rounded-full font-mono">' + tableName + ' (' + g.tableCode + ')</span>' +
+                 '</div>';
+        }).join('');
+        dropdown.classList.remove('hidden');
+      } else {
+        dropdown.classList.add('hidden');
+      }
     }
 
-    function updateTableSelect() {
-      const select = document.getElementById('tableSelect');
-      if (!select) return;
+    function selectGuestFromDropdown(name) {
+      document.getElementById('frontendSearchInput').value = name;
+      document.getElementById('searchDropdown').classList.add('hidden');
+      handleSearch();
+    }
+
+    function handleSearch() {
+      var keyword = document.getElementById('frontendSearchInput').value.trim().toLowerCase();
+      document.getElementById('searchDropdown').classList.add('hidden');
+      if (!keyword || !window.appData.guests) return;
+
+      var matched = window.appData.guests.find(function(g) { 
+        return (g.name && g.name.toLowerCase().indexOf(keyword) !== -1);
+      });
+
+      if (matched) {
+        var tableObj = (window.appData.tables || []).find(function(t) { return t.id === matched.tableCode; });
+        var tableName = tableObj ? tableObj.name : matched.tableCode;
+        
+        currentTargetTableId = matched.tableCode;
+
+        document.getElementById('modalGuestName').innerText = matched.name + ' 貴賓';
+        
+        var tagEl = document.getElementById('modalGuestTag');
+        if (matched.tag) {
+          tagEl.innerText = '🏷️ 分類標籤：' + matched.tag;
+          tagEl.classList.remove('hidden');
+        } else {
+          tagEl.classList.add('hidden');
+        }
+
+        document.getElementById('modalTableName').innerText = tableName;
+        document.getElementById('modalTableCode').innerText = '桌號代碼 : ' + matched.tableCode;
+        
+        document.getElementById('searchResultModal').classList.remove('hidden');
+      } else {
+        alert("查無此賓客姓名，請確認輸入是否正確。");
+      }
+    }
+
+    function locateSearchedTable() {
+      closeSearchModal();
+      document.querySelectorAll('.table-circle-item').forEach(function(el) { el.classList.remove('table-highlight'); });
+
+      if (currentTargetTableId) {
+        var target = document.getElementById('table-node-' + currentTargetTableId);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('table-highlight');
+          setTimeout(function() {
+            target.classList.remove('table-highlight');
+          }, 4500);
+        }
+      }
+    }
+
+    function closeSearchModal() {
+      document.getElementById('searchResultModal').classList.add('hidden');
+    }
+
+    function switchAdminTab(tabName) {
+      ['tables', 'canvas', 'info'].forEach(function(t) {
+        var el = document.getElementById('tab-' + t);
+        var btn = document.getElementById('tabBtn-' + t);
+        if (t === tabName) {
+          el.classList.remove('hidden');
+          btn.className = "px-4 sm:px-5 py-2 rounded-full text-xs font-bold bg-[#A39281] text-white flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap";
+        } else {
+          el.classList.add('hidden');
+          btn.className = "px-4 sm:px-5 py-2 rounded-full text-xs text-[#786A5C] hover:bg-[#EFE8DF] flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap";
+        }
+      });
+
+      if (tabName === 'canvas') {
+        renderEditorMap();
+      }
+    }
+
+    function refreshAdminData() {
+      if (!window.appData) return;
+
+      var grid = document.getElementById('adminTableCardGrid');
+      var select = document.getElementById('addGuestTableSelect');
+      var tbody = document.getElementById('adminGuestTableBody');
+
+      grid.innerHTML = '';
       select.innerHTML = '';
-      localTablesData.forEach(table => {
-        const opt = document.createElement('option');
-        opt.value = table.id;
-        opt.textContent = table.name;
+      tbody.innerHTML = '';
+
+      (window.appData.tables || []).forEach(function(t) {
+        var count = (window.appData.guests || []).filter(function(g) { return g.tableCode === t.id; }).length;
+
+        var card = document.createElement('div');
+        card.className = "bg-white border border-[#ECE4DA] rounded-2xl p-3 shadow-xs flex justify-between items-center";
+        card.innerHTML = '<div>' +
+                           '<div class="flex items-center gap-2">' +
+                             '<span class="font-bold text-xs text-[#52473C]">' + t.name + '</span>' +
+                             '<span class="text-[10px] bg-[#EFE8DF] text-[#786A5C] px-1.5 py-0.5 rounded font-mono">' + t.id + '</span>' +
+                           '</div>' +
+                           '<p class="text-[10px] text-[#A39281] mt-1">' + (t.category ? t.category + ' • ' : '') + '目前人數：' + count + ' 人</p>' +
+                         '</div>' +
+                         '<button onclick="deleteTable(\'' + t.id + '\')" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 cursor-pointer">刪除</button>';
+        grid.appendChild(card);
+
+        var opt = document.createElement('option');
+        opt.value = t.id;
+        opt.innerText = t.name + ' (' + t.id + ')';
         select.appendChild(opt);
       });
+
+      (window.appData.guests || []).forEach(function(g, idx) {
+        var tableObj = (window.appData.tables || []).find(function(t) { return t.id === g.tableCode; });
+        var tableName = tableObj ? tableObj.name : g.tableCode;
+
+        var tr = document.createElement('tr');
+        tr.className = "border-b border-[#ECE4DA] hover:bg-[#FDFBF7]";
+        tr.innerHTML = '<td class="p-3 font-bold text-[#52473C]">' + g.name + '</td>' +
+                       '<td class="p-3 text-[#786A5C]">' + tableName + ' <span class="text-[10px] text-[#A39281]">(' + g.tableCode + ')</span></td>' +
+                       '<td class="p-3"><span class="px-2 py-0.5 text-[10px] bg-amber-50 text-amber-700 rounded-full border border-amber-200">' + (g.tag || '無') + '</span></td>' +
+                       '<td class="p-3 text-[#A39281]">' + (g.note || '--') + '</td>' +
+                       '<td class="p-3 text-right"><button onclick="deleteGuest(' + idx + ')" class="text-red-400 hover:text-red-600 cursor-pointer">刪除</button></td>';
+        tbody.appendChild(tr);
+      });
     }
 
-    // === 4. 互動事件邏輯 ===
-    function addGuest() {
-      const nameInput = document.getElementById('guestName');
-      const name = nameInput.value.trim();
-      const category = document.getElementById('guestCategory').value;
-      const tableId = document.getElementById('tableSelect').value;
+    function addNewTable() {
+      var code = document.getElementById('addTableCode').value.trim();
+      var name = document.getElementById('addTableName').value.trim();
+      var cat = document.getElementById('addTableCategory').value.trim();
 
-      if (!name) {
-        alert('請輸入賓客姓名！');
+      if (!code || !name) {
+        alert("請填寫桌號代碼與桌次名稱！");
         return;
       }
 
-      const table = localTablesData.find(t => t.id === tableId);
-      if (table) {
-        if (!table.guests) table.guests = [];
-        table.guests.push({ name, category });
-        nameInput.value = '';
-        renderTables();
-        saveToFirebase();
-      }
-    }
-
-    function removeGuest(tableIndex, guestIndex) {
-      localTablesData[tableIndex].guests.splice(guestIndex, 1);
-      renderTables();
-      saveToFirebase();
-    }
-
-    function addTable() {
-      const nameInput = document.getElementById('tableName');
-      const name = nameInput.value.trim();
-      if (!name) {
-        alert('請先輸入桌名喔！');
+      window.appData.tables = window.appData.tables || [];
+      if (window.appData.tables.some(function(t) { return t.id === code; })) {
+        alert("此桌號代碼已存在！");
         return;
       }
 
-      const newTable = {
-        id: 't_' + Date.now(),
+      window.appData.tables.push({
+        id: code,
         name: name,
-        guests: []
-      };
+        category: cat,
+        top: 375,
+        left: 250
+      });
 
-      localTablesData.push(newTable);
-      nameInput.value = '';
-      renderTables();
-      updateTableSelect();
-      saveToFirebase();
+      document.getElementById('addTableCode').value = '';
+      document.getElementById('addTableName').value = '';
+      document.getElementById('addTableCategory').value = '';
+
+      saveData();
+      refreshAdminData();
     }
 
-    function deleteTable(tableIndex) {
-      const tableName = localTablesData[tableIndex].name;
-      if (confirm(`確定要刪除「${tableName}」嗎？裡面的賓客名單也會一併被刪除喔！`)) {
-        localTablesData.splice(tableIndex, 1);
-        renderTables();
-        updateTableSelect();
-        saveToFirebase();
+    function deleteTable(tableId) {
+      if (!confirm("確定要刪除這張桌次嗎？該桌的賓客分配也將受影響。")) return;
+      window.appData.tables = (window.appData.tables || []).filter(function(t) { return t.id !== tableId; });
+      saveData();
+      refreshAdminData();
+    }
+
+    function addNewGuest() {
+      var name = document.getElementById('addGuestName').value.trim();
+      var tableCode = document.getElementById('addGuestTableSelect').value;
+      var tag = document.getElementById('addGuestTag').value.trim();
+      var note = document.getElementById('addGuestNote').value.trim();
+
+      if (!name || !tableCode) {
+        alert("請填寫賓客姓名與分配桌號！");
+        return;
+      }
+
+      window.appData.guests = window.appData.guests || [];
+      window.appData.guests.push({
+        name: name,
+        tableCode: tableCode,
+        tag: tag,
+        note: note
+      });
+
+      document.getElementById('addGuestName').value = '';
+      document.getElementById('addGuestTag').value = '';
+      document.getElementById('addGuestNote').value = '';
+
+      saveData();
+      refreshAdminData();
+    }
+
+    function deleteGuest(index) {
+      if (!confirm("確定要刪除此賓客嗎？")) return;
+      window.appData.guests.splice(index, 1);
+      saveData();
+      refreshAdminData();
+    }
+
+    function saveWeddingInfo() {
+      window.appData.info = {
+        groom: document.getElementById('cfgGroom').value.trim(),
+        bride: document.getElementById('cfgBride').value.trim(),
+        dateTime: document.getElementById('cfgDateTime').value.trim(),
+        location: document.getElementById('cfgLocation').value.trim(),
+        hall: document.getElementById('cfgHall').value.trim()
+      };
+      window.appData.password = document.getElementById('cfgPassword').value.trim() || "1234";
+
+      saveData();
+      alert("資訊與密碼已成功儲存！");
+    }
+
+    function updateCarpetFromInputs() {
+      window.appData.lCarpet = {
+        x1: parseInt(document.getElementById('carpetX1').value) || 250,
+        y1: parseInt(document.getElementById('carpetY1').value) || 160,
+        x2: parseInt(document.getElementById('carpetX2').value) || 250,
+        y2: parseInt(document.getElementById('carpetY2').value) || 652,
+        x3: parseInt(document.getElementById('carpetX3').value) || 383,
+        y3: parseInt(document.getElementById('carpetY3').value) || 652,
+        width: parseInt(document.getElementById('carpetWidth').value) || 20
+      };
+      renderEditorMap();
+      renderFrontend();
+    }
+
+    function saveCanvasLayout() {
+      saveData();
+      alert("平面圖與紅毯佈局已儲存並同步至雲端！");
+    }
+
+    // 後台地圖編輯器與拖曳手勢
+    var activeDraggingNode = null;
+    var dragOffset = { x: 0, y: 0 };
+
+    function renderEditorMap() {
+      var container = document.getElementById('editorNodesContainer');
+      var svg = document.getElementById('editorCarpetSvg');
+      if (!container || !svg) return;
+
+      container.innerHTML = '';
+      svg.innerHTML = '';
+
+      var c = window.appData.lCarpet || window.defaultData.lCarpet;
+      var polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      polyline.setAttribute('points', c.x1 + ',' + c.y1 + ' ' + c.x2 + ',' + c.y2 + ' ' + c.x3 + ',' + c.y3);
+      polyline.setAttribute('stroke', '#D8C5B3');
+      polyline.setAttribute('stroke-width', c.width || 20);
+      polyline.setAttribute('stroke-linecap', 'round');
+      polyline.setAttribute('fill', 'none');
+      svg.appendChild(polyline);
+
+      (window.appData.tables || []).forEach(function(t) {
+        var circle = document.createElement('div');
+        circle.id = 'editor-node-' + t.id;
+        circle.dataset.id = t.id;
+        circle.className = 'absolute table-circle-item w-16 h-16 sm:w-20 sm:h-20 bg-[#FAF6F0] border-2 border-[#52473C] flex flex-col justify-center items-center text-center p-1 shadow-md cursor-grab active:cursor-grabbing';
+        
+        circle.style.top = ((t.top / 750) * 100) + '%';
+        circle.style.left = ((t.left / 500) * 100) + '%';
+
+        circle.innerHTML = '<span class="text-[10px] sm:text-xs font-bold font-serif-custom text-[#52473C] pointer-events-none truncate w-full px-0.5">' + t.name + '</span>' +
+                           '<span class="text-[8px] sm:text-[9px] text-[#A39281] mt-0.5 font-mono pointer-events-none">' + t.id + '</span>';
+
+        circle.addEventListener('mousedown', startDrag);
+        circle.addEventListener('touchstart', startDrag, { passive: false });
+
+        container.appendChild(circle);
+      });
+    }
+
+    function startDrag(e) {
+      e.preventDefault();
+      activeDraggingNode = e.currentTarget;
+      activeDraggingNode.classList.add('is-dragging');
+
+      var box = document.getElementById('editorCanvasBox').getBoundingClientRect();
+      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      window.addEventListener('mousemove', onDrag);
+      window.addEventListener('touchmove', onDrag, { passive: false });
+      window.addEventListener('mouseup', stopDrag);
+      window.addEventListener('touchend', stopDrag);
+    }
+
+    function onDrag(e) {
+      if (!activeDraggingNode) return;
+      e.preventDefault();
+
+      var box = document.getElementById('editorCanvasBox').getBoundingClientRect();
+      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      var relX = clientX - box.left;
+      var relY = clientY - box.top;
+
+      var posX = Math.max(0, Math.min(box.width, relX));
+      var posY = Math.max(0, Math.min(box.height, relY));
+
+      var scaleX = 500 / box.width;
+      var scaleY = 750 / box.height;
+
+      var mapX = Math.round(posX * scaleX);
+      var mapY = Math.round(posY * scaleY);
+
+      activeDraggingNode.style.left = ((mapX / 500) * 100) + '%';
+      activeDraggingNode.style.top = ((mapY / 750) * 100) + '%';
+
+      var tableId = activeDraggingNode.dataset.id;
+      var targetTable = (window.appData.tables || []).find(function(t) { return t.id === tableId; });
+      if (targetTable) {
+        targetTable.left = mapX;
+        targetTable.top = mapY;
       }
     }
+
+    function stopDrag() {
+      if (activeDraggingNode) {
+        activeDraggingNode.classList.remove('is-dragging');
+        activeDraggingNode = null;
+        saveData();
+      }
+      window.removeEventListener('mousemove', onDrag);
+      window.removeEventListener('touchmove', onDrag);
+      window.removeEventListener('mouseup', stopDrag);
+      window.removeEventListener('touchend', stopDrag);
+    }
+
+    function exportGuestCSV() {
+      if (!window.appData || !window.appData.guests) return;
+      
+      var csvContent = "\uFEFF姓名,席位桌號,桌次名稱,分類標籤,備註\n";
+      window.appData.guests.forEach(function(g) {
+        var tableObj = (window.appData.tables || []).find(function(t) { return t.id === g.tableCode; });
+        var tableName = tableObj ? tableObj.name : g.tableCode;
+        csvContent += '"' + (g.name || '') + '","' + (g.tableCode || '') + '","' + tableName + '","' + (g.tag || '') + '","' + (g.note || '') + '"\n';
+      });
+
+      var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "婚禮賓客名單.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // 初始載入渲染
+    document.addEventListener('DOMContentLoaded', function() {
+      renderFrontend();
+    });
   </script>
 </body>
-  <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyBfVUH9KVZUybFtMPA-0Ol28pJURTjzHCQ",
-    authDomain: "wedding-seating-f074d.firebaseapp.com",
-    databaseURL: "https://wedding-seating-f074d-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "wedding-seating-f074d",
-    storageBucket: "wedding-seating-f074d.firebasestorage.app",
-    messagingSenderId: "520607155146",
-    appId: "1:520607155146:web:63c21d1c3ad14a3cc6c533",
-    measurementId: "G-GQMK6BF9YC"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 </html>
