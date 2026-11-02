@@ -9,46 +9,80 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   
-  <!-- Firebase SDK (v9 模組化引入) -->
+  <!-- Firebase SDK (v9 模組化) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-    // ⚠️ 請在此處填入你在 Firebase 主控台取得的 firebaseConfig
+    // ⚠️ 請填入你的 Firebase Config
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "YOUR_PROJECT_ID",
       storageBucket: "YOUR_PROJECT_ID.appspot.com",
       messagingSenderId: "YOUR_SENDER_ID",
       appId: "YOUR_APP_ID"
     };
 
-    // 初始化 Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
+    const auth = getAuth(app);
     const dbRef = ref(db, 'wedding_seating');
 
-    // 將 Firebase 實體掛載到 window 供全域函數使用
     window.db = db;
+    window.auth = auth;
     window.dbRef = dbRef;
-    window.setDatabaseData = (data) => set(dbRef, data);
 
-    // 即時監聽雲端資料變更 (雙向同步核心)
+    window.setDatabaseData = (data) => {
+      if (!auth.currentUser) {
+        alert("請先登入管理員帳號才能儲存變更！");
+        return;
+      }
+      set(dbRef, data).catch((err) => {
+        alert("儲存失敗，權限不足或連線問題：" + err.message);
+      });
+    };
+
+    window.adminLogin = (email, password) => {
+      return signInWithEmailAndPassword(auth, email, password);
+    };
+
+    window.adminLogout = () => {
+      signOut(auth).then(() => {
+        alert("已成功登出管理員身分");
+      });
+    };
+
+    onAuthStateChanged(auth, (user) => {
+      const authBox = document.getElementById('adminAuthBox');
+      const adminContent = document.getElementById('adminContent');
+      const userStatusText = document.getElementById('adminUserStatus');
+
+      if (user) {
+        if (authBox) authBox.classList.add('hidden');
+        if (adminContent) adminContent.classList.remove('hidden');
+        if (userStatusText) userStatusText.innerText = `已登入：${user.email}`;
+        if (window.refreshAdminData) window.refreshAdminData();
+        if (window.renderEditorMap) window.renderEditorMap();
+      } else {
+        if (authBox) authBox.classList.remove('hidden');
+        if (adminContent) adminContent.classList.add('hidden');
+        if (userStatusText) userStatusText.innerText = '';
+      }
+    });
+
     onValue(dbRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         window.appData = data;
       } else {
-        // 若雲端尚無資料，寫入預設初值
-        window.setDatabaseData(window.defaultData);
         window.appData = window.defaultData;
       }
-      // 收到最新資料後重新渲染畫面
       if (window.renderFrontend) window.renderFrontend();
-      if (window.refreshAdminData) window.refreshAdminData();
-      if (window.renderEditorMap) window.renderEditorMap();
+      if (window.refreshAdminData && auth.currentUser) window.refreshAdminData();
+      if (window.renderEditorMap && auth.currentUser) window.renderEditorMap();
       
       const statusEl = document.getElementById('syncStatus');
       if (statusEl) {
@@ -92,14 +126,33 @@
       100% { box-shadow: 0 0 0 0px rgba(176, 159, 140, 0), 0 8px 16px rgba(0,0,0,0.1); }
     }
 
+    /* 強制設定完美正圓形與尺寸，防止文字撐開變形 */
     .table-circle-item {
-      aspect-ratio: 1 / 1 !important;
+      width: 72px !important;
+      height: 72px !important;
+      min-width: 72px !important;
+      min-height: 72px !important;
       border-radius: 50% !important;
       transform: translate(-50%, -50%);
       touch-action: none !important;
       -webkit-user-drag: none;
       box-sizing: border-box;
       will-change: left, top;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    @media (min-width: 640px) {
+      .table-circle-item {
+        width: 84px !important;
+        height: 84px !important;
+        min-width: 84px !important;
+        min-height: 84px !important;
+      }
     }
 
     .is-dragging {
@@ -182,27 +235,30 @@
     <!-- 後台畫面 -->
     <div id="adminView" class="hidden w-full flex flex-col space-y-6">
       
-      <!-- 驗證密碼 -->
+      <!-- 安全驗證 (Firebase Auth 登入框) -->
       <div id="adminAuthBox" class="w-full bg-white/90 backdrop-blur-md rounded-3xl p-8 sm:p-10 border border-[#ECE4DA] shadow-lg flex flex-col items-center justify-center space-y-4">
-        <div class="w-12 h-12 rounded-full bg-[#F5EFE6] flex items-center justify-center text-xl">🔒</div>
-        <h3 class="text-sm font-bold text-[#52473C]">後台權限驗證</h3>
-        <input type="password" id="adminPasswordInput" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter') checkAdminPassword()" class="px-4 py-2 border border-[#ECE4DA] rounded-xl text-xs text-center focus:outline-none w-64">
-        <button onclick="checkAdminPassword()" class="px-6 py-2 bg-[#B09F8C] text-white rounded-xl text-xs font-bold hover:opacity-90 transition cursor-pointer">解鎖後台</button>
+        <div class="w-12 h-12 rounded-full bg-[#F5EFE6] flex items-center justify-center text-xl">🛡️</div>
+        <h3 class="text-sm font-bold text-[#52473C]">管理員安全登入 (Firebase Auth)</h3>
+        <p class="text-xs text-[#A39281] text-center">請輸入在 Firebase 控制台建立的管理者帳號密碼</p>
+        <input type="email" id="adminEmailInput" placeholder="管理員 Email" class="px-4 py-2 border border-[#ECE4DA] rounded-xl text-xs text-center focus:outline-none w-64">
+        <input type="password" id="adminPasswordInput" placeholder="密碼" onkeydown="if(event.key==='Enter') executeAdminLogin()" class="px-4 py-2 border border-[#ECE4DA] rounded-xl text-xs text-center focus:outline-none w-64">
+        <button onclick="executeAdminLogin()" class="px-6 py-2 bg-[#B09F8C] text-white rounded-xl text-xs font-bold hover:opacity-90 transition cursor-pointer">登入後台</button>
       </div>
 
       <!-- 後台管理控制台 -->
       <div id="adminContent" class="hidden flex flex-col space-y-6">
         
-        <div class="bg-[#F9F7F2]/80 border border-[#ECE4DA] rounded-3xl p-6 shadow-sm flex justify-between items-start">
+        <div class="bg-[#F9F7F2]/80 border border-[#ECE4DA] rounded-3xl p-6 shadow-sm flex justify-between items-center">
           <div>
             <h1 class="text-lg font-bold text-[#52473C] flex items-center gap-2">
               <span>⚙️</span> 婚禮控制中心 & 後台管理系統
             </h1>
-            <p class="text-xs text-[#A39281] mt-1">拖曳桌位或新增資料時，會即時透過 Firebase 自動同步至所有手機與電腦。</p>
+            <p id="adminUserStatus" class="text-xs text-[#A39281] mt-0.5 font-mono"></p>
           </div>
-          <button onclick="exportGuestCSV()" class="px-4 py-2 bg-white border border-[#ECE4DA] rounded-xl text-xs text-[#786A5C] hover:bg-[#F5EFE6] transition flex items-center gap-1 shadow-xs cursor-pointer">
-            📄 匯出 CSV
-          </button>
+          <div class="flex gap-2">
+            <button onclick="exportGuestCSV()" class="px-3.5 py-2 bg-white border border-[#ECE4DA] rounded-xl text-xs text-[#786A5C] hover:bg-[#F5EFE6] transition shadow-xs cursor-pointer">📄 匯出 CSV</button>
+            <button onclick="window.adminLogout()" class="px-3.5 py-2 bg-red-50 text-red-500 hover:bg-red-100 rounded-xl text-xs font-bold transition cursor-pointer">登出</button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -233,7 +289,7 @@
             <span>🎨</span> 編輯平面圖與紅毯
           </button>
           <button onclick="switchAdminTab('info')" id="tabBtn-info" class="px-4 sm:px-5 py-2 rounded-full text-xs text-[#786A5C] hover:bg-[#EFE8DF] flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap">
-            <span>♥</span> 婚禮資訊與密碼
+            <span>♥</span> 婚禮資訊
           </button>
         </div>
 
@@ -268,7 +324,7 @@
             <h2 class="text-sm font-bold text-[#52473C] flex items-center gap-1.5">
               <span>👤</span> 新增單筆賓客
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
                 <label class="text-[11px] text-[#A39281] block mb-1">賓客姓名 *</label>
                 <input type="text" id="addGuestName" placeholder="例如：李小華" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
@@ -278,12 +334,8 @@
                 <select id="addGuestTableSelect" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none"></select>
               </div>
               <div>
-                <label class="text-[11px] text-[#A39281] block mb-1">分類標籤</label>
-                <input type="text" id="addGuestTag" placeholder="例如：男方朋友、素食" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
-              </div>
-              <div>
                 <label class="text-[11px] text-[#A39281] block mb-1">個人備註</label>
-                <input type="text" id="addGuestNote" placeholder="例如：攜伴1人" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
+                <input type="text" id="addGuestNote" placeholder="例如：蛋奶素" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs focus:outline-none">
               </div>
               <div class="flex items-end">
                 <button onclick="addNewGuest()" class="w-full py-2.5 bg-[#A39281] text-white rounded-xl text-xs font-bold hover:bg-[#8C7A6B] transition cursor-pointer">確定新增</button>
@@ -291,12 +343,11 @@
             </div>
 
             <div class="mt-4 border border-[#ECE4DA] rounded-2xl bg-white overflow-x-auto">
-              <table class="w-full text-xs text-left min-w-[500px]">
+              <table class="w-full text-xs text-left min-w-[400px]">
                 <thead class="bg-[#F9F7F2] text-[#A39281] border-b border-[#ECE4DA]">
                   <tr>
                     <th class="p-3">姓名</th>
                     <th class="p-3">安排桌次</th>
-                    <th class="p-3">分類標籤</th>
                     <th class="p-3">備註</th>
                     <th class="p-3 text-right">操作</th>
                   </tr>
@@ -386,11 +437,7 @@
             <label class="text-[11px] text-[#A39281] block mb-1">廳別</label>
             <input type="text" id="cfgHall" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
           </div>
-          <div>
-            <label class="text-[11px] text-[#A39281] block mb-1">後台管理密碼</label>
-            <input type="password" id="cfgPassword" class="w-full p-2.5 bg-white border border-[#ECE4DA] rounded-xl text-xs">
-          </div>
-          <button onclick="saveWeddingInfo()" class="w-full py-2.5 bg-[#A39281] text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-[#8C7A6B]">更新基本資訊與密碼</button>
+          <button onclick="saveWeddingInfo()" class="w-full py-2.5 bg-[#A39281] text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-[#8C7A6B]">更新基本資訊</button>
         </div>
 
       </div>
@@ -398,19 +445,15 @@
 
   </main>
 
-  <!-- 搜尋結果賓客卡片 Modal -->
+  <!-- 搜尋結果 Modal -->
   <div id="searchResultModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
     <div class="bg-[#FBF9F5] w-full max-w-sm rounded-3xl p-6 border border-[#ECE4DA] shadow-2xl space-y-5 text-center relative">
       <button onclick="closeSearchModal()" class="absolute right-5 top-5 text-gray-400 hover:text-gray-600 text-lg cursor-pointer">✕</button>
-      
       <div class="w-10 h-10 rounded-full bg-[#EFE8DF] flex items-center justify-center mx-auto text-sm text-[#A39281]">♥</div>
-      
       <div>
         <span class="text-[10px] text-[#A39281] tracking-widest uppercase block mb-1">WELCOME GUEST</span>
         <h3 id="modalGuestName" class="text-2xl font-bold font-serif-custom text-[#52473C]"></h3>
-        <p id="modalGuestTag" class="text-xs text-[#B09F8C] mt-1 hidden"></p>
       </div>
-
       <div class="bg-[#F3EDE4] border border-[#ECE4DA] rounded-2xl p-5 space-y-1">
         <p class="text-[11px] text-[#A39281]">您的席位桌號</p>
         <p id="modalTableName" class="text-2xl font-bold font-serif-custom text-[#52473C]"></p>
@@ -418,14 +461,11 @@
           <span id="modalTableCode" class="text-[10px] bg-white text-[#786A5C] px-3 py-1 rounded-full border border-[#ECE4DA] inline-block font-mono"></span>
         </div>
       </div>
-
       <div class="flex gap-2 pt-2">
         <button id="locateButton" onclick="locateSearchedTable()" class="flex-1 py-3 bg-[#B09F8C] text-white rounded-xl text-xs font-bold hover:bg-[#8C7A6B] transition shadow-xs cursor-pointer flex items-center justify-center gap-1">
           <span>🎥</span> 查看平面圖定位
         </button>
-        <button onclick="closeSearchModal()" class="px-5 py-3 bg-[#EFE8DF] text-[#786A5C] rounded-xl text-xs font-bold hover:bg-[#E5DEC9] transition cursor-pointer">
-          關閉
-        </button>
+        <button onclick="closeSearchModal()" class="px-5 py-3 bg-[#EFE8DF] text-[#786A5C] rounded-xl text-xs font-bold hover:bg-[#E5DEC9] transition cursor-pointer">關閉</button>
       </div>
     </div>
   </div>
@@ -438,26 +478,35 @@
     window.defaultData = {
       info: { groom: "蘇鴻楷", bride: "吳亭蓉", dateTime: "2026.11.07(六)", location: "台南晶英酒店2樓", hall: "明倫仁德廳" },
       tables: [
-        { id: "T01", name: "主桌", category: "長輩親眷", top: 120, left: 250 },
-        { id: "T02", name: "女方長輩", category: "長輩親眷", top: 210, left: 160 },
-        { id: "T03", name: "男方長輩", category: "長輩親眷", top: 380, left: 360 },
-        { id: "T04", name: "女方親戚", category: "親戚", top: 330, left: 200 },
-        { id: "T05", name: "男方親戚", category: "親戚", top: 210, left: 320 },
-        { id: "T06", name: "女方好友", category: "朋友", top: 330, left: 120 },
-        { id: "T07", name: "新郎同事", category: "同事", top: 330, left: 290 },
-        { id: "T08", name: "新娘大學", category: "同學", top: 480, left: 200 },
-        { id: "T09", name: "男方好友", category: "朋友", top: 520, left: 320 }
+        { id: "T01", name: "主桌", category: "", top: 120, left: 250 },
+        { id: "T02", name: "女方長輩", category: "", top: 210, left: 160 },
+        { id: "T03", name: "男方長輩", category: "", top: 380, left: 360 },
+        { id: "T04", name: "女方親戚", category: "", top: 330, left: 200 },
+        { id: "T05", name: "男方親戚", category: "", top: 210, left: 320 },
+        { id: "T06", name: "女方好友", category: "", top: 330, left: 120 },
+        { id: "T07", name: "新郎同事", category: "", top: 330, left: 290 },
+        { id: "T08", name: "新娘大學", category: "", top: 480, left: 200 },
+        { id: "T09", name: "男方好友", category: "", top: 520, left: 320 }
       ],
       guests: [
-        { name: "蘇鴻楷", tableCode: "T01", tag: "新郎", note: "新人" },
-        { name: "吳亭蓉", tableCode: "T01", tag: "新娘", note: "新人" }
+        { name: "蘇鴻楷", tableCode: "T01", note: "新郎" },
+        { name: "吳亭蓉", tableCode: "T01", note: "新娘" }
       ],
-      lCarpet: { x1: 250, y1: 160, x2: 250, y2: 652, x3: 383, y3: 652, width: 20 },
-      password: "1234"
+      lCarpet: { x1: 250, y1: 160, x2: 250, y2: 652, x3: 383, y3: 652, width: 20 }
     };
 
     window.appData = window.defaultData;
     var currentTargetTableId = null;
+
+    function executeAdminLogin() {
+      var email = document.getElementById('adminEmailInput').value.trim();
+      var pass = document.getElementById('adminPasswordInput').value.trim();
+      if (!email || !pass) { alert("請輸入 Email 與密碼！"); return; }
+
+      window.adminLogin(email, pass).catch(function(error) {
+        alert("登入失敗：" + error.message);
+      });
+    }
 
     function saveData() {
       if (window.setDatabaseData) {
@@ -480,7 +529,6 @@
       document.getElementById('cfgDateTime').value = data.info?.dateTime || '';
       document.getElementById('cfgLocation').value = data.info?.location || '';
       document.getElementById('cfgHall').value = data.info?.hall || '';
-      document.getElementById('cfgPassword').value = data.password || "1234";
 
       var c = data.lCarpet || window.defaultData.lCarpet;
       document.getElementById('carpetX1').value = c.x1;
@@ -512,14 +560,12 @@
       (data.tables || []).forEach(function(t) {
         var circle = document.createElement('div');
         circle.id = 'table-node-' + t.id;
-        circle.className = 'absolute table-circle-item w-16 h-16 sm:w-20 sm:h-20 bg-[#FAF6F0] border-2 border-[#D8C5B3] flex flex-col justify-center items-center text-center p-1 shadow-md transition-all';
-        
+        // 限制內部文字大小與自動斷行，保證絕對正圓
+        circle.className = 'absolute table-circle-item bg-[#FAF6F0] border-2 border-[#D8C5B3] p-1 shadow-md transition-all';
         circle.style.top = ((t.top / 750) * 100) + '%';
         circle.style.left = ((t.left / 500) * 100) + '%';
-
-        circle.innerHTML = '<span class="text-[10px] sm:text-xs font-bold font-serif-custom text-[#52473C] leading-tight truncate w-full px-0.5 pointer-events-none">' + t.name + '</span>' +
-                           '<span class="text-[8px] sm:text-[9px] text-[#A39281] mt-0.5 font-mono pointer-events-none">' + t.id + '</span>';
-
+        circle.innerHTML = '<span class="text-[9px] sm:text-[11px] font-bold font-serif-custom text-[#52473C] leading-tight line-clamp-2 w-full px-0.5 pointer-events-none">' + t.name + '</span>' +
+                           '<span class="text-[7px] sm:text-[8px] text-[#A39281] font-mono pointer-events-none">' + t.id + '</span>';
         container.appendChild(circle);
       });
     }
@@ -538,18 +584,6 @@
       }
     }
 
-    function checkAdminPassword() {
-      var input = document.getElementById('adminPasswordInput').value.trim();
-      if (input === (window.appData.password || "1234")) {
-        document.getElementById('adminAuthBox').classList.add('hidden');
-        document.getElementById('adminContent').classList.remove('hidden');
-        refreshAdminData();
-        renderEditorMap();
-      } else {
-        alert("密碼錯誤！請重新輸入。");
-      }
-    }
-
     function handleSearchLive() {
       var keyword = document.getElementById('frontendSearchInput').value.trim().toLowerCase();
       var dropdown = document.getElementById('searchDropdown');
@@ -561,17 +595,15 @@
       }
 
       var matches = window.appData.guests.filter(function(g) {
-        return (g.name && g.name.toLowerCase().indexOf(keyword) !== -1) ||
-               (g.tag && g.tag.toLowerCase().indexOf(keyword) !== -1);
+        return g.name && g.name.toLowerCase().indexOf(keyword) !== -1;
       });
 
       if (matches.length > 0) {
         dropdown.innerHTML = matches.map(function(g) {
           var tableObj = (window.appData.tables || []).find(function(t) { return t.id === g.tableCode; });
           var tableName = tableObj ? tableObj.name : g.tableCode;
-          var tagBadge = g.tag ? '<span class="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded ml-1">' + g.tag + '</span>' : '';
           return '<div onclick="selectGuestFromDropdown(\'' + g.name + '\')" class="px-4 py-2.5 text-xs text-left hover:bg-[#F9F7F2] cursor-pointer flex justify-between items-center border-b border-[#ECE4DA] last:border-none">' +
-                   '<span class="font-bold text-[#52473C]">' + g.name + tagBadge + '</span>' +
+                   '<span class="font-bold text-[#52473C]">' + g.name + '</span>' +
                    '<span class="text-[10px] bg-[#EFE8DF] text-[#786A5C] px-2 py-0.5 rounded-full font-mono">' + tableName + ' (' + g.tableCode + ')</span>' +
                  '</div>';
         }).join('');
@@ -592,29 +624,15 @@
       document.getElementById('searchDropdown').classList.add('hidden');
       if (!keyword || !window.appData.guests) return;
 
-      var matched = window.appData.guests.find(function(g) { 
-        return (g.name && g.name.toLowerCase().indexOf(keyword) !== -1);
-      });
-
+      var matched = window.appData.guests.find(function(g) { return g.name && g.name.toLowerCase().indexOf(keyword) !== -1; });
       if (matched) {
         var tableObj = (window.appData.tables || []).find(function(t) { return t.id === matched.tableCode; });
         var tableName = tableObj ? tableObj.name : matched.tableCode;
         
         currentTargetTableId = matched.tableCode;
-
         document.getElementById('modalGuestName').innerText = matched.name + ' 貴賓';
-        
-        var tagEl = document.getElementById('modalGuestTag');
-        if (matched.tag) {
-          tagEl.innerText = '🏷️ 分類標籤：' + matched.tag;
-          tagEl.classList.remove('hidden');
-        } else {
-          tagEl.classList.add('hidden');
-        }
-
         document.getElementById('modalTableName').innerText = tableName;
         document.getElementById('modalTableCode').innerText = '桌號代碼 : ' + matched.tableCode;
-        
         document.getElementById('searchResultModal').classList.remove('hidden');
       } else {
         alert("查無此賓客姓名，請確認輸入是否正確。");
@@ -632,7 +650,7 @@
           target.classList.add('table-highlight');
           setTimeout(function() {
             target.classList.remove('table-highlight');
-          }, 4500);
+          }, 4000);
         }
       }
     }
@@ -643,65 +661,58 @@
 
     function switchAdminTab(tabName) {
       ['tables', 'canvas', 'info'].forEach(function(t) {
-        var el = document.getElementById('tab-' + t);
-        var btn = document.getElementById('tabBtn-' + t);
+        var tabEl = document.getElementById('tab-' + t);
+        var btnEl = document.getElementById('tabBtn-' + t);
         if (t === tabName) {
-          el.classList.remove('hidden');
-          btn.className = "px-4 sm:px-5 py-2 rounded-full text-xs font-bold bg-[#A39281] text-white flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap";
+          tabEl.classList.remove('hidden');
+          btnEl.className = "px-4 sm:px-5 py-2 rounded-full text-xs font-bold bg-[#A39281] text-white flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap";
+          if (t === 'canvas') renderEditorMap();
         } else {
-          el.classList.add('hidden');
-          btn.className = "px-4 sm:px-5 py-2 rounded-full text-xs text-[#786A5C] hover:bg-[#EFE8DF] flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap";
+          tabEl.classList.add('hidden');
+          btnEl.className = "px-4 sm:px-5 py-2 rounded-full text-xs text-[#786A5C] hover:bg-[#EFE8DF] flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap";
         }
       });
-
-      if (tabName === 'canvas') {
-        renderEditorMap();
-      }
     }
 
     function refreshAdminData() {
       if (!window.appData) return;
-
-      var grid = document.getElementById('adminTableCardGrid');
       var select = document.getElementById('addGuestTableSelect');
-      var tbody = document.getElementById('adminGuestTableBody');
-
-      grid.innerHTML = '';
       select.innerHTML = '';
-      tbody.innerHTML = '';
-
       (window.appData.tables || []).forEach(function(t) {
-        var count = (window.appData.guests || []).filter(function(g) { return g.tableCode === t.id; }).length;
-
-        var card = document.createElement('div');
-        card.className = "bg-white border border-[#ECE4DA] rounded-2xl p-3 shadow-xs flex justify-between items-center";
-        card.innerHTML = '<div>' +
-                           '<div class="flex items-center gap-2">' +
-                             '<span class="font-bold text-xs text-[#52473C]">' + t.name + '</span>' +
-                             '<span class="text-[10px] bg-[#EFE8DF] text-[#786A5C] px-1.5 py-0.5 rounded font-mono">' + t.id + '</span>' +
-                           '</div>' +
-                           '<p class="text-[10px] text-[#A39281] mt-1">' + (t.category ? t.category + ' • ' : '') + '目前人數：' + count + ' 人</p>' +
-                         '</div>' +
-                         '<button onclick="deleteTable(\'' + t.id + '\')" class="text-xs text-red-400 hover:text-red-600 px-2 py-1 cursor-pointer">刪除</button>';
-        grid.appendChild(card);
-
         var opt = document.createElement('option');
         opt.value = t.id;
         opt.innerText = t.name + ' (' + t.id + ')';
         select.appendChild(opt);
       });
 
+      var grid = document.getElementById('adminTableCardGrid');
+      grid.innerHTML = '';
+      (window.appData.tables || []).forEach(function(t) {
+        var count = (window.appData.guests || []).filter(function(g) { return g.tableCode === t.id; }).length;
+        var card = document.createElement('div');
+        card.className = "p-3 bg-white border border-[#ECE4DA] rounded-2xl flex justify-between items-center shadow-xs";
+        card.innerHTML = '<div>' +
+                           '<div class="flex items-center gap-2">' +
+                             '<span class="font-bold text-xs text-[#52473C]">' + t.name + '</span>' +
+                             '<span class="text-[10px] bg-[#EFE8DF] text-[#786A5C] px-1.5 py-0.5 rounded-md font-mono">' + t.id + '</span>' +
+                           '</div>' +
+                           '<p class="text-[11px] text-[#A39281] mt-1">目前人數：<b class="text-[#52473C]">' + count + '</b> 人</p>' +
+                         '</div>' +
+                         '<button onclick="deleteTable(\'' + t.id + '\')" class="px-3 py-1 bg-red-50 text-red-500 hover:bg-red-100 rounded-xl text-xs font-bold transition cursor-pointer">刪除</button>';
+        grid.appendChild(card);
+      });
+
+      var tbody = document.getElementById('adminGuestTableBody');
+      tbody.innerHTML = '';
       (window.appData.guests || []).forEach(function(g, idx) {
         var tableObj = (window.appData.tables || []).find(function(t) { return t.id === g.tableCode; });
         var tableName = tableObj ? tableObj.name : g.tableCode;
-
         var tr = document.createElement('tr');
-        tr.className = "border-b border-[#ECE4DA] hover:bg-[#FDFBF7]";
+        tr.className = "border-b border-[#ECE4DA] last:border-none hover:bg-[#FDFCF9]";
         tr.innerHTML = '<td class="p-3 font-bold text-[#52473C]">' + g.name + '</td>' +
-                       '<td class="p-3 text-[#786A5C]">' + tableName + ' <span class="text-[10px] text-[#A39281]">(' + g.tableCode + ')</span></td>' +
-                       '<td class="p-3"><span class="px-2 py-0.5 text-[10px] bg-amber-50 text-amber-700 rounded-full border border-amber-200">' + (g.tag || '無') + '</span></td>' +
-                       '<td class="p-3 text-[#A39281]">' + (g.note || '--') + '</td>' +
-                       '<td class="p-3 text-right"><button onclick="deleteGuest(' + idx + ')" class="text-red-400 hover:text-red-600 cursor-pointer">刪除</button></td>';
+                       '<td class="p-3">' + tableName + ' <span class="text-[10px] font-mono text-[#A39281]">(' + g.tableCode + ')</span></td>' +
+                       '<td class="p-3 text-[#A39281]">' + (g.note || '-') + '</td>' +
+                       '<td class="p-3 text-right"><button onclick="deleteGuest(' + idx + ')" class="text-red-400 hover:text-red-600 font-bold cursor-pointer">刪除</button></td>';
         tbody.appendChild(tr);
       });
     }
@@ -710,117 +721,47 @@
       var code = document.getElementById('addTableCode').value.trim();
       var name = document.getElementById('addTableName').value.trim();
       var cat = document.getElementById('addTableCategory').value.trim();
-
-      if (!code || !name) {
-        alert("請填寫桌號代碼與桌次名稱！");
-        return;
-      }
-
-      window.appData.tables = window.appData.tables || [];
-      if (window.appData.tables.some(function(t) { return t.id === code; })) {
-        alert("此桌號代碼已存在！");
-        return;
-      }
-
-      window.appData.tables.push({
-        id: code,
-        name: name,
-        category: cat,
-        top: 375,
-        left: 250
-      });
-
+      if (!code || !name) { alert("請填寫桌號代碼與名稱！"); return; }
+      
+      if (!window.appData.tables) window.appData.tables = [];
+      window.appData.tables.push({ id: code, name: name, category: cat, top: 350, left: 250 });
+      saveData();
       document.getElementById('addTableCode').value = '';
       document.getElementById('addTableName').value = '';
       document.getElementById('addTableCategory').value = '';
-
-      saveData();
-      refreshAdminData();
     }
 
-    function deleteTable(tableId) {
-      if (!confirm("確定要刪除這張桌次嗎？該桌的賓客分配也將受影響。")) return;
-      window.appData.tables = (window.appData.tables || []).filter(function(t) { return t.id !== tableId; });
-      saveData();
-      refreshAdminData();
+    function deleteTable(id) {
+      if (confirm("確定要刪除此桌次嗎？")) {
+        window.appData.tables = (window.appData.tables || []).filter(function(t) { return t.id !== id; });
+        saveData();
+      }
     }
 
     function addNewGuest() {
       var name = document.getElementById('addGuestName').value.trim();
       var tableCode = document.getElementById('addGuestTableSelect').value;
-      var tag = document.getElementById('addGuestTag').value.trim();
       var note = document.getElementById('addGuestNote').value.trim();
+      if (!name) { alert("請輸入賓客姓名！"); return; }
 
-      if (!name || !tableCode) {
-        alert("請填寫賓客姓名與分配桌號！");
-        return;
-      }
-
-      window.appData.guests = window.appData.guests || [];
-      window.appData.guests.push({
-        name: name,
-        tableCode: tableCode,
-        tag: tag,
-        note: note
-      });
-
-      document.getElementById('addGuestName').value = '';
-      document.getElementById('addGuestTag').value = '';
-      document.getElementById('addGuestNote').value = '';
-
+      if (!window.appData.guests) window.appData.guests = [];
+      window.appData.guests.push({ name: name, tableCode: tableCode, note: note });
       saveData();
-      refreshAdminData();
+      document.getElementById('addGuestName').value = '';
+      document.getElementById('addGuestNote').value = '';
     }
 
     function deleteGuest(index) {
-      if (!confirm("確定要刪除此賓客嗎？")) return;
-      window.appData.guests.splice(index, 1);
-      saveData();
-      refreshAdminData();
+      if (confirm("確定要刪除此賓客嗎？")) {
+        window.appData.guests.splice(index, 1);
+        saveData();
+      }
     }
-
-    function saveWeddingInfo() {
-      window.appData.info = {
-        groom: document.getElementById('cfgGroom').value.trim(),
-        bride: document.getElementById('cfgBride').value.trim(),
-        dateTime: document.getElementById('cfgDateTime').value.trim(),
-        location: document.getElementById('cfgLocation').value.trim(),
-        hall: document.getElementById('cfgHall').value.trim()
-      };
-      window.appData.password = document.getElementById('cfgPassword').value.trim() || "1234";
-
-      saveData();
-      alert("資訊與密碼已成功儲存！");
-    }
-
-    function updateCarpetFromInputs() {
-      window.appData.lCarpet = {
-        x1: parseInt(document.getElementById('carpetX1').value) || 250,
-        y1: parseInt(document.getElementById('carpetY1').value) || 160,
-        x2: parseInt(document.getElementById('carpetX2').value) || 250,
-        y2: parseInt(document.getElementById('carpetY2').value) || 652,
-        x3: parseInt(document.getElementById('carpetX3').value) || 383,
-        y3: parseInt(document.getElementById('carpetY3').value) || 652,
-        width: parseInt(document.getElementById('carpetWidth').value) || 20
-      };
-      renderEditorMap();
-      renderFrontend();
-    }
-
-    function saveCanvasLayout() {
-      saveData();
-      alert("平面圖與紅毯佈局已儲存並同步至雲端！");
-    }
-
-    // 後台地圖編輯器與拖曳手勢
-    var activeDraggingNode = null;
-    var dragOffset = { x: 0, y: 0 };
 
     function renderEditorMap() {
+      if (!window.appData) return;
       var container = document.getElementById('editorNodesContainer');
       var svg = document.getElementById('editorCarpetSvg');
-      if (!container || !svg) return;
-
       container.innerHTML = '';
       svg.innerHTML = '';
 
@@ -835,105 +776,121 @@
 
       (window.appData.tables || []).forEach(function(t) {
         var circle = document.createElement('div');
-        circle.id = 'editor-node-' + t.id;
-        circle.dataset.id = t.id;
-        circle.className = 'absolute table-circle-item w-16 h-16 sm:w-20 sm:h-20 bg-[#FAF6F0] border-2 border-[#52473C] flex flex-col justify-center items-center text-center p-1 shadow-md cursor-grab active:cursor-grabbing';
-        
+        circle.className = 'absolute table-circle-item bg-white border-2 border-[#B09F8C] p-1 shadow-md cursor-grab active:cursor-grabbing hover:scale-105 transition-transform';
         circle.style.top = ((t.top / 750) * 100) + '%';
         circle.style.left = ((t.left / 500) * 100) + '%';
+        circle.innerHTML = '<span class="text-[9px] sm:text-[11px] font-bold text-[#52473C] leading-tight line-clamp-2 w-full px-0.5 pointer-events-none">' + t.name + '</span>' +
+                           '<span class="text-[7px] sm:text-[8px] text-[#A39281] font-mono pointer-events-none">' + t.id + '</span>';
 
-        circle.innerHTML = '<span class="text-[10px] sm:text-xs font-bold font-serif-custom text-[#52473C] pointer-events-none truncate w-full px-0.5">' + t.name + '</span>' +
-                           '<span class="text-[8px] sm:text-[9px] text-[#A39281] mt-0.5 font-mono pointer-events-none">' + t.id + '</span>';
-
-        circle.addEventListener('mousedown', startDrag);
-        circle.addEventListener('touchstart', startDrag, { passive: false });
-
+        makeElementDraggable(circle, t);
         container.appendChild(circle);
       });
     }
 
-    function startDrag(e) {
-      e.preventDefault();
-      activeDraggingNode = e.currentTarget;
-      activeDraggingNode.classList.add('is-dragging');
+    function makeElementDraggable(element, tableData) {
+      var canvasBox = document.getElementById('editorCanvasBox');
 
-      var box = document.getElementById('editorCanvasBox').getBoundingClientRect();
-      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      function onStart(e) {
+        if (e.touches && e.touches.length > 1) return;
+        e.preventDefault();
+        element.classList.add('is-dragging');
 
-      window.addEventListener('mousemove', onDrag);
-      window.addEventListener('touchmove', onDrag, { passive: false });
-      window.addEventListener('mouseup', stopDrag);
-      window.addEventListener('touchend', stopDrag);
+        var rect = canvasBox.getBoundingClientRect();
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        var currentCanvasX = (tableData.left / 500) * rect.width;
+        var currentCanvasY = (tableData.top / 750) * rect.height;
+
+        var startTouchX = clientX - rect.left;
+        var startTouchY = clientY - rect.top;
+
+        var offsetX = startTouchX - currentCanvasX;
+        var offsetY = startTouchY - currentCanvasY;
+
+        function onMove(moveEvent) {
+          moveEvent.preventDefault();
+          var moveClientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+          var moveClientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+          var currentRect = canvasBox.getBoundingClientRect();
+          var rawX = moveClientX - currentRect.left - offsetX;
+          var rawY = moveClientY - currentRect.top - offsetY;
+
+          var posX = Math.round((rawX / currentRect.width) * 500);
+          var posY = Math.round((rawY / currentRect.height) * 750);
+
+          posX = Math.max(25, Math.min(475, posX));
+          posY = Math.max(25, Math.min(725, posY));
+
+          tableData.left = posX;
+          tableData.top = posY;
+
+          element.style.left = ((tableData.left / 500) * 100) + '%';
+          element.style.top = ((tableData.top / 750) * 100) + '%';
+        }
+
+        function onEnd(endEvent) {
+          element.classList.remove('is-dragging');
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onEnd);
+          window.removeEventListener('touchmove', onMove);
+          window.removeEventListener('touchend', onEnd);
+
+          saveData();
+        }
+
+        window.addEventListener('mousemove', onMove, { passive: false });
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onEnd);
+      }
+
+      element.addEventListener('mousedown', onStart);
+      element.addEventListener('touchstart', onStart, { passive: false });
     }
 
-    function onDrag(e) {
-      if (!activeDraggingNode) return;
-      e.preventDefault();
-
-      var box = document.getElementById('editorCanvasBox').getBoundingClientRect();
-      var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      var clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-      var relX = clientX - box.left;
-      var relY = clientY - box.top;
-
-      var posX = Math.max(0, Math.min(box.width, relX));
-      var posY = Math.max(0, Math.min(box.height, relY));
-
-      var scaleX = 500 / box.width;
-      var scaleY = 750 / box.height;
-
-      var mapX = Math.round(posX * scaleX);
-      var mapY = Math.round(posY * scaleY);
-
-      activeDraggingNode.style.left = ((mapX / 500) * 100) + '%';
-      activeDraggingNode.style.top = ((mapY / 750) * 100) + '%';
-
-      var tableId = activeDraggingNode.dataset.id;
-      var targetTable = (window.appData.tables || []).find(function(t) { return t.id === tableId; });
-      if (targetTable) {
-        targetTable.left = mapX;
-        targetTable.top = mapY;
-      }
+    function updateCarpetFromInputs() {
+      window.appData.lCarpet = {
+        x1: parseInt(document.getElementById('carpetX1').value) || 250,
+        y1: parseInt(document.getElementById('carpetY1').value) || 160,
+        x2: parseInt(document.getElementById('carpetX2').value) || 250,
+        y2: parseInt(document.getElementById('carpetY2').value) || 652,
+        x3: parseInt(document.getElementById('carpetX3').value) || 383,
+        y3: parseInt(document.getElementById('carpetY3').value) || 652,
+        width: parseInt(document.getElementById('carpetWidth').value) || 20
+      };
+      saveData();
     }
 
-    function stopDrag() {
-      if (activeDraggingNode) {
-        activeDraggingNode.classList.remove('is-dragging');
-        activeDraggingNode = null;
-        saveData();
-      }
-      window.removeEventListener('mousemove', onDrag);
-      window.removeEventListener('touchmove', onDrag);
-      window.removeEventListener('mouseup', stopDrag);
-      window.removeEventListener('touchend', stopDrag);
+    function saveCanvasLayout() {
+      saveData();
+      alert("桌位與紅毯佈局已同步至雲端！");
+    }
+
+    function saveWeddingInfo() {
+      if (!window.appData.info) window.appData.info = {};
+      window.appData.info.groom = document.getElementById('cfgGroom').value.trim();
+      window.appData.info.bride = document.getElementById('cfgBride').value.trim();
+      window.appData.info.dateTime = document.getElementById('cfgDateTime').value.trim();
+      window.appData.info.location = document.getElementById('cfgLocation').value.trim();
+      window.appData.info.hall = document.getElementById('cfgHall').value.trim();
+      
+      saveData();
+      alert("婚禮基本資訊已更新並同步！");
     }
 
     function exportGuestCSV() {
-      if (!window.appData || !window.appData.guests) return;
-      
-      var csvContent = "\uFEFF姓名,席位桌號,桌次名稱,分類標籤,備註\n";
-      window.appData.guests.forEach(function(g) {
-        var tableObj = (window.appData.tables || []).find(function(t) { return t.id === g.tableCode; });
-        var tableName = tableObj ? tableObj.name : g.tableCode;
-        csvContent += '"' + (g.name || '') + '","' + (g.tableCode || '') + '","' + tableName + '","' + (g.tag || '') + '","' + (g.note || '') + '"\n';
+      var csvStr = "\uFEFF姓名,席位桌號,備註\n";
+      (window.appData.guests || []).forEach(function(g) {
+        csvStr += '"' + g.name + '","' + g.tableCode + '","' + (g.note || '') + '"\n';
       });
-
-      var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      var url = URL.createObjectURL(blob);
+      var blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
       var link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", "婚禮賓客名單.csv");
-      document.body.appendChild(link);
+      link.href = URL.createObjectURL(blob);
+      link.download = "賓客名單.csv";
       link.click();
-      document.body.removeChild(link);
     }
-
-    // 初始載入渲染
-    document.addEventListener('DOMContentLoaded', function() {
-      renderFrontend();
-    });
   </script>
 </body>
 </html>
